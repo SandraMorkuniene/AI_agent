@@ -148,20 +148,26 @@ st.title("🧠 Smart Data Cleaning Agent")
 file = st.file_uploader("Upload your CSV", type=["csv"])
 
 if file:
-    df = pd.read_csv(file)
-    st.write("📄 Original Data")
-    st.dataframe(df)
+    try:
+        df = pd.read_csv(file)
+        if df.empty:
+            st.error("Uploaded CSV is empty.")
+        else:
+            st.write("📄 Original Data")
+            st.dataframe(df)
 
-    if st.button("Run Smart Cleaning"):
-        cleaned_df, log = run_agent_pipeline(df)
-        st.write("✅ Cleaned Data")
-        st.dataframe(cleaned_df)
+            if st.button("🚀 Run Smart Cleaning"):
+                cleaned_df, log = run_agent_pipeline(df)
 
-        st.write("📝 Agent Log")
-        for step in log:
-            st.markdown(step)
+                st.write("✅ Cleaned Data")
+                st.dataframe(cleaned_df)
 
-        st.download_button("⬇ Download Cleaned Data", cleaned_df.to_csv(index=False), "cleaned.csv")
+                st.write("📝 Agent Log")
+                for step in log:
+                    st.markdown(step)
 
+                st.download_button("⬇ Download Cleaned Data", cleaned_df.to_csv(index=False), "cleaned.csv")
+    except Exception as e:
+        st.error(f"Error reading CSV: {e}")
 
 
