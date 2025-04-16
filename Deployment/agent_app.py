@@ -96,10 +96,10 @@ class AgentState(TypedDict):
     next_action: Optional[str]
     
 ### 4. Build LangGraph
-def build_graph():
+def build_graph(llm_decision_func):
     builder = StateGraph(AgentState)
 
-    builder.add_node("LLMDecision", decide_next_action)
+    builder.add_node("LLMDecision", llm_decision_func)
 
     # Tool runner node gets selected by LLM
     for tool_name in tools.keys():
