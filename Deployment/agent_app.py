@@ -33,7 +33,7 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df.convert_dtypes()
 
-@tool
+
 def generate_eda_summary(df: pd.DataFrame) -> str:
     return df.describe().to_string()
 
