@@ -1,5 +1,6 @@
 
 import streamlit as st
+import os
 import pandas as pd
 from langchain.chat_models import ChatOpenAI
 from langchain.tools import tool
@@ -11,24 +12,24 @@ from langchain_core.runnables import RunnableConfig
 
 ### 1. TOOLS ###
 
-@tool
+
 def drop_nulls(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna()
 
-@tool
+
 def fill_nulls_with_median(df: pd.DataFrame) -> pd.DataFrame:
     return df.fillna(df.median(numeric_only=True))
 
-@tool
+
 def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
     return df
 
-@tool
+
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop_duplicates()
 
-@tool
+
 def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df.convert_dtypes()
 
@@ -48,6 +49,10 @@ tools = {
 
 
 ### 2. LLM Decision Logic
+
+# Pull API key from Streamlit secrets
+os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
+
 llm = ChatOpenAI(model="gpt-4", temperature=0)
 
 def decide_next_action(state: Dict[str, Any]) -> str:
