@@ -6,8 +6,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.tools import tool
 from langgraph.graph import StateGraph, END
 from langchain_core.runnables import RunnableConfig
-
-from typing import Dict, Any
+from typing import Dict, Any, TypedDict, List, Optional
 from langchain_core.runnables import RunnableConfig
 
 ### 1. TOOLS ###
@@ -90,10 +89,15 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
     return state
 
 
-
+class AgentState(TypedDict):
+    df: pd.DataFrame
+    log: List[str]
+    actions_taken: List[str]
+    next_action: Optional[str]
+    
 ### 4. Build LangGraph
 def build_graph():
-    builder = StateGraph()
+    builder = StateGraph(AgentState)
 
     builder.add_node("LLMDecision", decide_next_action)
 
