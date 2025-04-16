@@ -121,7 +121,6 @@ def build_graph():
 
 ### Entrypoint
 def run_agent_pipeline(df: pd.DataFrame):
-    graph = build_graph()
     initial_state = {
         "df": df,
         "log": [],
@@ -134,9 +133,12 @@ def run_agent_pipeline(df: pd.DataFrame):
         state["next_action"] = action
         return state
 
-    graph.get_node("LLMDecision").set_callable(wrapper)
+    # Pass the wrapper function here
+    graph = build_graph(wrapper)
+
     final_state = graph.invoke(initial_state, config=RunnableConfig())
     return final_state["df"], final_state["log"]
+
 
 
 
