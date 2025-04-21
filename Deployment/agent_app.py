@@ -149,30 +149,67 @@ def run_agent_pipeline(df: pd.DataFrame):
 
 
 ### 6. Streamlit Frontend
+st.set_page_config(page_title="Smart Data Cleaning Agent", layout="wide")
 st.title("🧠 Smart Data Cleaning Agent")
+
+# --- Session State Initialization ---
+if "df" not in st.session_state:
+    st.session_state.df = None
+if "log" not in st.session_state:
+    st.session_state.log = []
+if "cleaned_df" not in st.session_state:
+    st.session_state.cleaned_df = None
+
+# --- Clear Session State ---
+if st.button("🧹 Clear Session"):
+    st.session_state.df = None
+    st.session_state.log = []
+    st.session_state.cleaned_df = None
+    st.rerun()
+
+# --- File Upload ---
 file = st.file_uploader("Upload your CSV", type=["csv"])
 
 if file:
-    try:
-        df = pd.read_csv(file)
-        if df.empty:
-            st.error("Uploaded CSV is empty.")
-        else:
-            st.write("📄 Original Data")
-            st.dataframe(df)
+    # Security check: File size and type
+    if file.size > 5 * 1024 * 1024:
+        st.error("File too large. Maximum size allowed: 5MB.")
+    elif not file.name.endswith(".csv"):
+        st.error("Invalid file type. Please upload a CSV file.")
+    else:
+        try:
+            df = pd.read_csv(file)
+            if df.empty:
+                st.error("Uploaded CSV is empty.")
+            else:
+                st.session_state.df = df
+                st.write("📄 Original Data")
+                st.dataframe(df)
 
-            if st.button("🚀 Run Smart Cleaning"):
-                cleaned_df, log = run_agent_pipeline(df)
+                if st.button("🚀 Run Smart Cleaning"):
+                    with st.spinner("Cleaning in progress..."):
+                        cleaned_df, log = run_agent_pipeline(df)
 
-                st.write("✅ Cleaned Data")
-                st.dataframe(cleaned_df)
+                    st.session_state.cleaned_df = cleaned_df
+                    st.session_state.log = log
 
-                st.write("📝 Agent Log")
-                for step in log:
-                    st.markdown(step)
+                    st.success("Cleaning completed!")
 
-                st.download_button("⬇ Download Cleaned Data", cleaned_df.to_csv(index=False), "cleaned.csv")
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
+        except Exception as e:
+            st.error(f"Error reading CSV: {e}")
 
+# --- Show Intermediate Cleaning Steps ---
+if st.session_state.cleaned_df is not None:
+    st.write("✅ Final Cleaned Data")
+    st.dataframe(st.session_state.cleaned_df)
 
+    st.write("📝 Agent Log & Intermediate Results")
+    intermediate_df = st.session_state.df.copy()
+    for step in st.session_state.log:
+        st.markdown(step)
+        tool_name = step.replace("✅ Ran tool: ", "").strip()
+        if tool_name in tools:
+            intermediate_df = tools[tool_name](intermediate_df)
+            st.dataframe(intermediate_df, use_container_width=True)
+
+    st.download_button("⬇ Download Cleaned Data", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv")
