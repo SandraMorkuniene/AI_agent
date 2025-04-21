@@ -85,6 +85,7 @@ Respond with just the tool name or 'end'.
 '''
 
     response = llm.invoke(instruction).content.strip().lower()
+    response = response.strip('"').strip("'")
     return response
 
 
