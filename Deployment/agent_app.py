@@ -164,28 +164,23 @@ def run_agent_pipeline(df: pd.DataFrame):
 
 
 
-
 ### 6. Streamlit Frontend
 st.set_page_config(page_title="Smart Data Cleaning Agent", layout="wide")
 st.title("🧠 Smart Data Cleaning Agent")
 
 # --- Session State Initialization ---
-if "df" not in st.session_state:
-    st.session_state.df = None
-if "log" not in st.session_state:
-    st.session_state.log = []
-if "cleaned_df" not in st.session_state:
-    st.session_state.cleaned_df = None
+for key in ["df", "log", "cleaned_df", "step_selection"]:
+    if key not in st.session_state:
+        st.session_state[key] = None if key != "step_selection" else []
 
 # --- Clear Session State ---
 if st.button("🧹 Clear Session"):
-    st.session_state.df = None
-    st.session_state.log = []
-    st.session_state.cleaned_df = None
+    for key in ["df", "log", "cleaned_df", "step_selection"]:
+        st.session_state[key] = None if key != "step_selection" else []
     st.rerun()
 
 # --- File Upload ---
-file = st.file_uploader("Upload your CSV", type=["csv"])
+file = st.file_uploader("📂 Upload your CSV", type=["csv"])
 
 if file:
     try:
@@ -195,37 +190,75 @@ if file:
         st.stop()
 
     if df.empty:
-        st.error("Uploaded CSV is empty.")
+        st.error("⚠️ Uploaded CSV is empty.")
     else:
         st.session_state.df = df
-        st.write("📄 Original Data")
-        st.dataframe(df)
+        st.write("📄 **Original Data**")
+        st.dataframe(df, use_container_width=True)
 
-        if st.button("🚀 Run Smart Cleaning"):
+        if st.button("🚀 Run Smart Cleaning Agent"):
             try:
-                with st.spinner("Cleaning in progress..."):
+                with st.spinner("Agent is working its cleaning magic..."):
                     cleaned_df, log = run_agent_pipeline(df)
-
                 st.session_state.cleaned_df = cleaned_df
                 st.session_state.log = log
-                st.success("Cleaning completed!")
+                st.session_state.step_selection = [True if l.startswith("✅") else False for l in log]
+                st.success("🎉 Cleaning complete! Review and adjust steps below.")
             except Exception as e:
                 st.error(f"❌ Error during cleaning process: {e}")
 
-# --- Show Intermediate Cleaning Steps ---
-if st.session_state.cleaned_df is not None:
-    st.write("📝 Agent Log & Intermediate Results")
-    intermediate_df = st.session_state.df.copy()
-    for step in st.session_state.log:
-        st.markdown(step)
+# --- Step-by-Step Review and Toggle ---
+if st.session_state.log:
+    st.subheader("📝 Review & Control Cleaning Steps")
+    st.caption("Uncheck any steps you want to exclude, then re-apply.")
+
+    for i, step in enumerate(st.session_state.log):
         if step.startswith("✅ Ran tool: "):
-            tool_name = step.replace("✅ Ran tool: ", "").strip()
-            if tool_name in tools:
-                try:
-                    intermediate_df = tools[tool_name](intermediate_df)
-                    st.dataframe(intermediate_df, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"⚠ Failed to apply '{tool_name}': {e}")
+            st.session_state.step_selection[i] = st.checkbox(
+                label=step,
+                value=st.session_state.step_selection[i],
+                key=f"step_{i}"
+            )
+        else:
+            st.markdown(step)
 
+    if st.button("🔁 Apply Selected Steps"):
+        try:
+            selected_steps = [
+                st.session_state.log[i].replace("✅ Ran tool: ", "").strip()
+                for i, sel in enumerate(st.session_state.step_selection)
+                if sel and st.session_state.log[i].startswith("✅")
+            ]
 
-    st.download_button("⬇ Download Cleaned Data", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv")
+            df_preview = st.session_state.df.copy()
+            clean_log = []
+
+            for tool in selected_steps:
+                if tool in tools:
+                    try:
+                        df_preview = tools[tool](df_preview)
+                        clean_log.append(f"✅ Re-applied tool: {tool}")
+                    except Exception as e:
+                        clean_log.append(f"❌ Error applying tool {tool}: {e}")
+
+            st.session_state.cleaned_df = df_preview
+            st.session_state.clean_log = clean_log
+            st.success("Steps applied. See result below.")
+
+        except Exception as e:
+            st.error(f"❌ Error while applying steps: {e}")
+
+# --- Final Output Preview and Download ---
+if st.session_state.cleaned_df is not None:
+    st.subheader("📦 Final Cleaned Data")
+    st.dataframe(st.session_state.cleaned_df, use_container_width=True)
+
+    if st.session_state.cleaned_df.empty:
+        st.warning("⚠️ Your final result is empty. Try deselecting some steps.")
+    else:
+        st.download_button(
+            label="⬇ Download Cleaned CSV",
+            data=st.session_state.cleaned_df.to_csv(index=False),
+            file_name="cleaned.csv",
+            mime="text/csv"
+        )
