@@ -12,14 +12,15 @@ from langchain_core.runnables import RunnableConfig
 ### 1. TOOLS ###
 
 
-def drop_nulls(df: pd.DataFrame) -> pd.DataFrame:
-    return df.dropna()
-
-
 def fill_nulls_with_median(df: pd.DataFrame) -> pd.DataFrame:
     return df.fillna(df.median(numeric_only=True))
 
-
+def normalize_missing_values(df: pd.DataFrame) -> pd.DataFrame:
+    return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", ""], np.nan)
+    
+def drop_nulls(df: pd.DataFrame) -> pd.DataFrame:
+    return df.dropna()
+    
 def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
     return df
@@ -32,6 +33,12 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df.convert_dtypes()
 
+def standardize_booleans(df: pd.DataFrame) -> pd.DataFrame:
+    bool_map = {"yes": True, "no": False, "1": True, "0": False}
+    for col in df.columns:
+        if df[col].astype(str).str.lower().isin(bool_map.keys()).any():
+            df[col] = df[col].astype(str).str.lower().map(bool_map).fillna(df[col])
+    return df
 
 def generate_eda_summary(df: pd.DataFrame) -> str:
     buffer = []
@@ -44,10 +51,12 @@ def generate_eda_summary(df: pd.DataFrame) -> str:
 tools = {
     "drop_nulls": drop_nulls,
     "fill_nulls_with_median": fill_nulls_with_median,
+    "normalize_missing_values": normalize_missing_values,
     "standardize_column_names": standardize_column_names,
     "remove_duplicates": remove_duplicates,
     "convert_dtypes": convert_dtypes,
-    "generate_eda_summary": generate_eda_summary,
+    "standardize_booleans": standardize_booleans,
+    "generate_eda_summary": generate_eda_summary
 }
 
 
