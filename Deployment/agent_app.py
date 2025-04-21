@@ -34,7 +34,12 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_eda_summary(df: pd.DataFrame) -> str:
-    return df.describe().to_string()
+    buffer = []
+    buffer.append("Shape:\n" + str(df.shape))
+    buffer.append("\nMissing Values:\n" + str(df.isnull().sum()))
+    buffer.append("\nSummary Stats:\n" + df.describe().to_string())
+    return "\n\n".join(buffer)
+
 
 tools = {
     "drop_nulls": drop_nulls,
