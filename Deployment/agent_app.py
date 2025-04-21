@@ -93,14 +93,21 @@ Respond with just the tool name or 'end'.
 def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
     df = state["df"]
     tool_func = tools.get(tool_name)
+    
     if tool_func is None:
-        state["log"].append(f"❌ Tool '{tool_name}' not found.")
+        state["log"].append(f"❌ Tool '{tool_name}' not found in registry.")
         return state
-    new_df = tool_func(df)
-    state["df"] = new_df
-    state["actions_taken"].append(tool_name)
-    state["log"].append(f"✅ Ran tool: {tool_name}")
+    
+    try:
+        new_df = tool_func(df)
+        state["df"] = new_df
+        state["actions_taken"].append(tool_name)
+        state["log"].append(f"✅ Ran tool: {tool_name}")
+    except Exception as e:
+        state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
+    
     return state
+
 
 
 class AgentState(TypedDict):
