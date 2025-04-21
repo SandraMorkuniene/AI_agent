@@ -180,45 +180,44 @@ if st.button("🧹 Clear Session"):
 file = st.file_uploader("Upload your CSV", type=["csv"])
 
 if file:
-    # Security check: File size and type
-    if file.size > 5 * 1024 * 1024:
-        st.error("File too large. Maximum size allowed: 5MB.")
-    elif not file.name.endswith(".csv"):
-        st.error("Invalid file type. Please upload a CSV file.")
+    try:
+        df = pd.read_csv(file)
+    except Exception as e:
+        st.error(f"❌ Failed to read CSV: {e}")
+        st.stop()
+
+    if df.empty:
+        st.error("Uploaded CSV is empty.")
     else:
-        try:
-            df = pd.read_csv(file)
-            if df.empty:
-                st.error("Uploaded CSV is empty.")
-            else:
-                st.session_state.df = df
-                st.write("📄 Original Data")
-                st.dataframe(df)
+        st.session_state.df = df
+        st.write("📄 Original Data")
+        st.dataframe(df)
 
-                if st.button("🚀 Run Smart Cleaning"):
-                    with st.spinner("Cleaning in progress..."):
-                        cleaned_df, log = run_agent_pipeline(df)
+        if st.button("🚀 Run Smart Cleaning"):
+            try:
+                with st.spinner("Cleaning in progress..."):
+                    cleaned_df, log = run_agent_pipeline(df)
 
-                    st.session_state.cleaned_df = cleaned_df
-                    st.session_state.log = log
-
-                    st.success("Cleaning completed!")
-
-        except Exception as e:
-            st.error(f"Error reading CSV: {e}")
+                st.session_state.cleaned_df = cleaned_df
+                st.session_state.log = log
+                st.success("Cleaning completed!")
+            except Exception as e:
+                st.error(f"❌ Error during cleaning process: {e}")
 
 # --- Show Intermediate Cleaning Steps ---
 if st.session_state.cleaned_df is not None:
-    st.write("✅ Final Cleaned Data")
-    st.dataframe(st.session_state.cleaned_df)
-
     st.write("📝 Agent Log & Intermediate Results")
     intermediate_df = st.session_state.df.copy()
     for step in st.session_state.log:
         st.markdown(step)
-        tool_name = step.replace("✅ Ran tool: ", "").strip()
-        if tool_name in tools:
-            intermediate_df = tools[tool_name](intermediate_df)
-            st.dataframe(intermediate_df, use_container_width=True)
+        if step.startswith("✅ Ran tool: "):
+            tool_name = step.replace("✅ Ran tool: ", "").strip()
+            if tool_name in tools:
+                try:
+                    intermediate_df = tools[tool_name](intermediate_df)
+                    st.dataframe(intermediate_df, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠ Failed to apply '{tool_name}': {e}")
+
 
     st.download_button("⬇ Download Cleaned Data", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv")
