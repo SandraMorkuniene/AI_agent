@@ -165,96 +165,98 @@ def run_agent_pipeline(df: pd.DataFrame):
 
 
 ### 6. Streamlit Frontend
+
+
 st.set_page_config(page_title="Smart Data Cleaning Agent", layout="wide")
 st.title("🧠 Smart Data Cleaning Agent")
 
 # --- Session State Initialization ---
-for key in ["df", "log", "cleaned_df", "step_selection"]:
+for key in ["df", "log", "cleaned_df", "step_selection", "intermediate_df"]:
     if key not in st.session_state:
         st.session_state[key] = None if key != "step_selection" else []
 
 # --- Clear Session State ---
 if st.button("🧹 Clear Session"):
-    for key in ["df", "log", "cleaned_df", "step_selection"]:
+    for key in ["df", "log", "cleaned_df", "step_selection", "intermediate_df"]:
         st.session_state[key] = None if key != "step_selection" else []
     st.rerun()
 
-# --- File Upload ---
+# --- Upload CSV ---
 file = st.file_uploader("📂 Upload your CSV", type=["csv"])
-
 if file:
     try:
         df = pd.read_csv(file)
+        if df.empty:
+            st.error("⚠️ Uploaded CSV is empty.")
+        else:
+            st.session_state.df = df
+            st.write("📄 **Original Data**")
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
 
-    if df.empty:
-        st.error("⚠️ Uploaded CSV is empty.")
-    else:
-        st.session_state.df = df
-        st.write("📄 **Original Data**")
-        st.dataframe(df, use_container_width=True)
+# --- Run Agent ---
+if st.session_state.df is not None and st.button("🚀 Run Smart Cleaning Agent"):
+    try:
+        with st.spinner("Agent is working..."):
+            cleaned_df, log = run_agent_pipeline(st.session_state.df)
 
-        if st.button("🚀 Run Smart Cleaning Agent"):
-            try:
-                with st.spinner("Agent is working its cleaning magic..."):
-                    cleaned_df, log = run_agent_pipeline(df)
-                st.session_state.cleaned_df = cleaned_df
-                st.session_state.log = log
-                st.session_state.step_selection = [True if l.startswith("✅") else False for l in log]
-                st.success("🎉 Cleaning complete! Review and adjust steps below.")
-            except Exception as e:
-                st.error(f"❌ Error during cleaning process: {e}")
+        st.session_state.cleaned_df = cleaned_df
+        st.session_state.log = log
+        st.session_state.step_selection = [
+            l.startswith("✅") for l in log
+        ]  # default: apply all
+        st.success("✅ Cleaning complete! Review and adjust steps below.")
+    except Exception as e:
+        st.error(f"❌ Error during cleaning process: {e}")
 
-# --- Step-by-Step Review and Toggle ---
+# --- Step-by-Step Toggle + Re-apply ---
 if st.session_state.log:
     st.subheader("📝 Review & Control Cleaning Steps")
-    st.caption("Uncheck any steps you want to exclude, then re-apply.")
 
-    for i, step in enumerate(st.session_state.log):
-        if step.startswith("✅ Ran tool: "):
+    # Collect tool steps
+    tool_steps = [
+        (i, l.replace("✅ Ran tool: ", "").strip())
+        for i, l in enumerate(st.session_state.log)
+        if l.startswith("✅ Ran tool:")
+    ]
+
+    with st.form("step_selector_form"):
+        st.markdown("Uncheck any tools you don't want to apply to the final result.")
+        selected = []
+        for i, tool in tool_steps:
             st.session_state.step_selection[i] = st.checkbox(
-                label=step,
-                value=st.session_state.step_selection[i],
-                key=f"step_{i}"
+                tool, value=st.session_state.step_selection[i], key=f"step_{i}"
             )
-        else:
-            st.markdown(step)
+            if st.session_state.step_selection[i]:
+                selected.append(tool)
 
-    if st.button("🔁 Apply Selected Steps"):
-        try:
-            selected_steps = [
-                st.session_state.log[i].replace("✅ Ran tool: ", "").strip()
-                for i, sel in enumerate(st.session_state.step_selection)
-                if sel and st.session_state.log[i].startswith("✅")
-            ]
+        submitted = st.form_submit_button("🔁 Apply Selected Steps")
 
-            df_preview = st.session_state.df.copy()
-            clean_log = []
+        if submitted:
+            # Apply only selected tools
+            preview_df = st.session_state.df.copy()
+            applied_log = []
 
-            for tool in selected_steps:
-                if tool in tools:
-                    try:
-                        df_preview = tools[tool](df_preview)
-                        clean_log.append(f"✅ Re-applied tool: {tool}")
-                    except Exception as e:
-                        clean_log.append(f"❌ Error applying tool {tool}: {e}")
+            for tool in selected:
+                try:
+                    preview_df = tools[tool](preview_df)
+                    applied_log.append(f"✅ Re-applied tool: {tool}")
+                except Exception as e:
+                    applied_log.append(f"❌ Error applying {tool}: {e}")
 
-            st.session_state.cleaned_df = df_preview
-            st.session_state.clean_log = clean_log
-            st.success("Steps applied. See result below.")
+            st.session_state.cleaned_df = preview_df
+            st.session_state.clean_log = applied_log
+            st.success("✅ Steps re-applied with your selection.")
 
-        except Exception as e:
-            st.error(f"❌ Error while applying steps: {e}")
-
-# --- Final Output Preview and Download ---
+# --- Final Output ---
 if st.session_state.cleaned_df is not None:
     st.subheader("📦 Final Cleaned Data")
     st.dataframe(st.session_state.cleaned_df, use_container_width=True)
 
     if st.session_state.cleaned_df.empty:
-        st.warning("⚠️ Your final result is empty. Try deselecting some steps.")
+        st.warning("⚠️ Final result is empty. Try adjusting your step selection.")
     else:
         st.download_button(
             label="⬇ Download Cleaned CSV",
