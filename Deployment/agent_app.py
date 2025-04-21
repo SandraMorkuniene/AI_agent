@@ -171,14 +171,22 @@ st.set_page_config(page_title="Smart Data Cleaning Agent", layout="wide")
 st.title("🧠 Smart Data Cleaning Agent")
 
 # --- Session State Initialization ---
-for key in ["df", "log", "cleaned_df", "step_selection", "intermediate_df"]:
-    if key not in st.session_state:
-        st.session_state[key] = None if key != "step_selection" else []
+init_keys = {
+    "df": None,
+    "log": [],
+    "cleaned_df": None,
+    "step_selection": [],
+    "intermediate_df": None,
+    "clean_log": [],
+}
+for k, v in init_keys.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # --- Clear Session State ---
 if st.button("🧹 Clear Session"):
-    for key in ["df", "log", "cleaned_df", "step_selection", "intermediate_df"]:
-        st.session_state[key] = None if key != "step_selection" else []
+    for k in init_keys:
+        st.session_state[k] = init_keys[k]
     st.rerun()
 
 # --- Upload CSV ---
@@ -204,18 +212,20 @@ if st.session_state.df is not None and st.button("🚀 Run Smart Cleaning Agent"
 
         st.session_state.cleaned_df = cleaned_df
         st.session_state.log = log
+
+        # Setup default step selection — one for each step
         st.session_state.step_selection = [
-            l.startswith("✅") for l in log
-        ]  # default: apply all
+            l.startswith("✅ Ran tool: ") for l in log
+        ]
+
         st.success("✅ Cleaning complete! Review and adjust steps below.")
     except Exception as e:
         st.error(f"❌ Error during cleaning process: {e}")
 
 # --- Step-by-Step Toggle + Re-apply ---
-if st.session_state.log:
+if st.session_state.log and len(st.session_state.step_selection) == len(st.session_state.log):
     st.subheader("📝 Review & Control Cleaning Steps")
 
-    # Collect tool steps
     tool_steps = [
         (i, l.replace("✅ Ran tool: ", "").strip())
         for i, l in enumerate(st.session_state.log)
@@ -223,19 +233,23 @@ if st.session_state.log:
     ]
 
     with st.form("step_selector_form"):
-        st.markdown("Uncheck any tools you don't want to apply to the final result.")
+        st.markdown("✅ Uncheck any tools you don't want to apply to the final result.")
+
         selected = []
-        for i, tool in tool_steps:
-            st.session_state.step_selection[i] = st.checkbox(
-                tool, value=st.session_state.step_selection[i], key=f"step_{i}"
+        for idx, tool in tool_steps:
+            apply_tool = st.checkbox(
+                tool,
+                value=st.session_state.step_selection[idx],
+                key=f"step_{idx}"
             )
-            if st.session_state.step_selection[i]:
+            st.session_state.step_selection[idx] = apply_tool
+            if apply_tool:
                 selected.append(tool)
 
         submitted = st.form_submit_button("🔁 Apply Selected Steps")
 
         if submitted:
-            # Apply only selected tools
+            # Apply only selected tools to a fresh copy
             preview_df = st.session_state.df.copy()
             applied_log = []
 
