@@ -16,7 +16,7 @@ def fill_nulls_with_median(df: pd.DataFrame) -> pd.DataFrame:
     return df.fillna(df.median(numeric_only=True))
 
 def normalize_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", ""], np.nan)
+    return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan)
     
 def drop_nulls(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna()
