@@ -170,20 +170,19 @@ def run_agent_pipeline(df: pd.DataFrame):
 st.set_page_config(page_title="Smart Data Cleaning Agent", layout="wide")
 st.title("🧠 Smart Data Cleaning Agent")
 
-# --- Session State Initialization ---
+# --- Session Initialization ---
 init_keys = {
     "df": None,
     "log": [],
     "cleaned_df": None,
     "step_selection": [],
-    "intermediate_df": None,
     "clean_log": [],
 }
 for k, v in init_keys.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --- Clear Session State ---
+# --- Clear Session ---
 if st.button("🧹 Clear Session"):
     for k in init_keys:
         st.session_state[k] = init_keys[k]
@@ -204,7 +203,7 @@ if file:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
 
-# --- Run Agent ---
+# --- Run Cleaning ---
 if st.session_state.df is not None and st.button("🚀 Run Smart Cleaning Agent"):
     try:
         with st.spinner("Agent is working..."):
@@ -212,19 +211,30 @@ if st.session_state.df is not None and st.button("🚀 Run Smart Cleaning Agent"
 
         st.session_state.cleaned_df = cleaned_df
         st.session_state.log = log
+        st.session_state.step_selection = [l.startswith("✅ Ran tool: ") for l in log]
 
-        # Setup default step selection — one for each step
-        st.session_state.step_selection = [
-            l.startswith("✅ Ran tool: ") for l in log
-        ]
-
-        st.success("✅ Cleaning complete! Review and adjust steps below.")
+        st.success("✅ Agent cleaning complete. See steps below.")
     except Exception as e:
         st.error(f"❌ Error during cleaning process: {e}")
 
-# --- Step-by-Step Toggle + Re-apply ---
+# --- Show Step-by-Step Results ---
+if st.session_state.log:
+    st.subheader("🔍 Step-by-Step Preview of Cleaning")
+    preview_df = st.session_state.df.copy()
+
+    for i, step in enumerate(st.session_state.log):
+        st.markdown(step)
+        if step.startswith("✅ Ran tool: "):
+            tool = step.replace("✅ Ran tool: ", "").strip()
+            try:
+                preview_df = tools[tool](preview_df)
+                st.dataframe(preview_df, use_container_width=True)
+            except Exception as e:
+                st.warning(f"⚠️ Failed to apply tool '{tool}': {e}")
+
+# --- User Tool Selection + Re-Apply ---
 if st.session_state.log and len(st.session_state.step_selection) == len(st.session_state.log):
-    st.subheader("📝 Review & Control Cleaning Steps")
+    st.subheader("🛠️ Customize Final Cleaning Steps")
 
     tool_steps = [
         (i, l.replace("✅ Ran tool: ", "").strip())
@@ -233,44 +243,42 @@ if st.session_state.log and len(st.session_state.step_selection) == len(st.sessi
     ]
 
     with st.form("step_selector_form"):
-        st.markdown("✅ Uncheck any tools you don't want to apply to the final result.")
+        st.markdown("✔️ Uncheck any tools you want to **exclude** from the final result.")
 
         selected = []
         for idx, tool in tool_steps:
             apply_tool = st.checkbox(
-                tool,
-                value=st.session_state.step_selection[idx],
+                f"{tool}", 
+                value=st.session_state.step_selection[idx], 
                 key=f"step_{idx}"
             )
             st.session_state.step_selection[idx] = apply_tool
             if apply_tool:
                 selected.append(tool)
 
-        submitted = st.form_submit_button("🔁 Apply Selected Steps")
+        submitted = st.form_submit_button("🔁 Re-Apply Selected Tools")
 
         if submitted:
-            # Apply only selected tools to a fresh copy
-            preview_df = st.session_state.df.copy()
-            applied_log = []
-
+            result_df = st.session_state.df.copy()
+            reapply_log = []
             for tool in selected:
                 try:
-                    preview_df = tools[tool](preview_df)
-                    applied_log.append(f"✅ Re-applied tool: {tool}")
+                    result_df = tools[tool](result_df)
+                    reapply_log.append(f"✅ Re-applied: {tool}")
                 except Exception as e:
-                    applied_log.append(f"❌ Error applying {tool}: {e}")
+                    reapply_log.append(f"❌ Error applying {tool}: {e}")
 
-            st.session_state.cleaned_df = preview_df
-            st.session_state.clean_log = applied_log
-            st.success("✅ Steps re-applied with your selection.")
+            st.session_state.cleaned_df = result_df
+            st.session_state.clean_log = reapply_log
+            st.success("✅ Final cleaned data updated based on your selection.")
 
 # --- Final Output ---
 if st.session_state.cleaned_df is not None:
-    st.subheader("📦 Final Cleaned Data")
+    st.subheader("📦 Final Cleaned Data (Downloadable)")
     st.dataframe(st.session_state.cleaned_df, use_container_width=True)
 
     if st.session_state.cleaned_df.empty:
-        st.warning("⚠️ Final result is empty. Try adjusting your step selection.")
+        st.warning("⚠️ Final result is empty. Try unchecking some cleaning steps.")
     else:
         st.download_button(
             label="⬇ Download Cleaned CSV",
