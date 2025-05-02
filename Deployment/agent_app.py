@@ -208,6 +208,11 @@ if st.session_state.suggested_tools:
 if st.session_state.cleaned_df is not None:
     st.subheader("📦 Final Cleaned Data")
     st.dataframe(st.session_state.cleaned_df.head(100), use_container_width=True)
+
+    st.markdown("### 📊 Updated Column Summary")
+    summary_df = generate_column_summary_table(st.session_state.cleaned_df)
+    st.dataframe(summary_df, use_container_width=True)
+
     st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv", "text/csv")
 
     st.markdown("### 🗣️ Provide Feedback to Improve Cleaning")
@@ -218,3 +223,4 @@ if st.session_state.cleaned_df is not None:
             st.session_state.cleaned_df = re_cleaned
             st.session_state.log += re_log
         st.success("✅ Agent re-cleaning complete.")
+        st.rerun()
