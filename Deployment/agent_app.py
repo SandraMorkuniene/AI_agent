@@ -126,12 +126,17 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], extra_instruc
 You are a data cleaning agent. The dataset preview is:
 {df.head().to_string()}
 
-Already applied: {done}
+Cleaning steps already applied: {done}
 Allowed tools: {allowed_tools}
-Extra user instructions: {extra_instructions}
+User provided these general instructions before cleaning:
+\"\"\"{extra_instructions}\"\"\"
 
-Pick the next best tool (not already used), or return 'end'.
-Respond ONLY with a tool name or 'end'.
+After reviewing the cleaned data, the user added:
+\"\"\"{feedback}\"\"\"
+Use both the initial instructions and the post-cleaning feedback to guide your next tool selection.
+Choose the most relevant next tool from the allowed tools.
+
+Respond ONLY with one of these tool names or 'end': {allowed_tools}
 """
         tool = llm.invoke(instruction).content.strip().strip("'\"").lower()
 
