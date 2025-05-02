@@ -41,12 +41,14 @@ llm = ChatOpenAI(model="gpt-4", temperature=0)
 
 # --- Generate summary of columns ---
 def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    total_rows = len(df)
     summary = []
     for col in df.columns:
         data = df[col]
         summary.append({
             "Column": col,
             "Type": str(data.dtype),
+            "Total Rows": total_rows,
             "Missing Values": data.isnull().sum(),
             "Missing (%)": round(data.isnull().mean() * 100, 2),
             "Unique": data.nunique(),
