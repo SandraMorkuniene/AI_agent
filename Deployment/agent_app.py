@@ -54,6 +54,8 @@ def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
             "Unique": data.nunique(),
             "Min": data.min() if pd.api.types.is_numeric_dtype(data) else "",
             "Max": data.max() if pd.api.types.is_numeric_dtype(data) else "",
+            "Mean": round(data.mean(), 2) if is_numeric else "",
+            "Median": round(data.median(), 2) if is_numeric else "",
             "Sample Values": ', '.join(map(str, data.dropna().unique()[:5]))
         })
     return pd.DataFrame(summary)
