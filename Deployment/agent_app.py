@@ -112,27 +112,21 @@ class AgentState(TypedDict):
     step_count: int
 
 ### Generate Column Summaries ###
-def generate_column_summaries(df: pd.DataFrame) -> str:
+def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
     summary = []
-    for column in df.columns:
-        col_data = df[column]
-        summary.append(f"**🧱 Column: {column}**")
-
-        summary.append(f"- Type: `{col_data.dtype}`")
-        missing = col_data.isnull().sum()
-        summary.append(f"- Missing values: `{missing}` ({missing / len(col_data) * 100:.1f}%)")
-        unique_vals = col_data.nunique()
-        summary.append(f"- Unique values: `{unique_vals}`")
-        if unique_vals <= 10:
-            values = ', '.join(map(str, col_data.dropna().unique()))
-            summary.append(f"  - Values: {values}")
-        if pd.api.types.is_numeric_dtype(col_data):
-            stats = col_data.describe().to_dict()
-            stats_str = ", ".join([f"{k}: {round(v, 2)}" for k, v in stats.items()])
-            summary.append(f"- Stats: {stats_str}")
-
-        summary.append("")  # Add spacing between columns
-    return "\n".join(summary)
+    for col in df.columns:
+        data = df[col]
+        summary.append({
+            "Column": col,
+            "Type": str(data.dtype),
+            "Missing Values": data.isnull().sum(),
+            "Missing (%)": round(data.isnull().mean() * 100, 2),
+            "Unique": data.nunique(),
+            "Min": data.min() if pd.api.types.is_numeric_dtype(data) else "",
+            "Max": data.max() if pd.api.types.is_numeric_dtype(data) else "",
+            "Sample Values": ', '.join(map(str, data.dropna().unique()[:5]))  # limit for readability
+        })
+    return pd.DataFrame(summary)
 
 ### Build LangGraph ###
 def build_graph(llm_decision_func):
@@ -218,8 +212,8 @@ if file:
 
             # ✅ Show column summary
             st.markdown("### 📊 Column Summary for Evaluation")
-            column_summary = generate_column_summaries(df)
-            st.markdown(column_summary)  # Shows up as text
+            summary_df = generate_column_summary_table(df)
+            st.dataframe(summary_df, use_container_width=True)
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
