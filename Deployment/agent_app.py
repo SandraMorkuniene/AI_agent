@@ -114,31 +114,24 @@ class AgentState(TypedDict):
 ### Generate Column Summaries ###
 def generate_column_summaries(df: pd.DataFrame) -> str:
     summary = []
-    
     for column in df.columns:
         col_data = df[column]
-        col_summary = f"**Column: {column}**\n"
-        
-        # Data type
-        col_summary += f"  - Type: {col_data.dtype}\n"
-        
-        # Missing values
-        missing_count = col_data.isnull().sum()
-        col_summary += f"  - Missing values: {missing_count} ({(missing_count / len(col_data)) * 100:.2f}%)\n"
-        
-        # Unique values (only display up to 10 unique values)
+        summary.append(f"**🧱 Column: {column}**")
+
+        summary.append(f"- Type: `{col_data.dtype}`")
+        missing = col_data.isnull().sum()
+        summary.append(f"- Missing values: `{missing}` ({missing / len(col_data) * 100:.1f}%)")
         unique_vals = col_data.nunique()
-        col_summary += f"  - Unique values: {unique_vals}\n"
+        summary.append(f"- Unique values: `{unique_vals}`")
         if unique_vals <= 10:
-            col_summary += f"    - Values: {', '.join(col_data.dropna().unique().astype(str))}\n"
-        
-        # For numeric columns, add summary statistics
+            values = ', '.join(map(str, col_data.dropna().unique()))
+            summary.append(f"  - Values: {values}")
         if pd.api.types.is_numeric_dtype(col_data):
             stats = col_data.describe().to_dict()
-            col_summary += f"  - Summary Stats: {stats}\n"
-        
-        summary.append(col_summary)
-    
+            stats_str = ", ".join([f"{k}: {round(v, 2)}" for k, v in stats.items()])
+            summary.append(f"- Stats: {stats_str}")
+
+        summary.append("")  # Add spacing between columns
     return "\n".join(summary)
 
 ### Build LangGraph ###
@@ -222,12 +215,11 @@ if file:
             st.session_state.df = df
             st.write("📄 **Original Data**")
             st.dataframe(df, use_container_width=True)
-            
-            # Generate column summaries and display as context for user evaluation
-            column_summary = generate_column_summaries(df)
-            st.markdown("### Column Summary for Evaluation:")
-            st.markdown(column_summary)
 
+            # ✅ Show column summary
+            st.markdown("### 📊 Column Summary for Evaluation")
+            column_summary = generate_column_summaries(df)
+            st.markdown(column_summary)  # Shows up as text
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
