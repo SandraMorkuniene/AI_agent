@@ -48,7 +48,7 @@ def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
         summary.append({
             "Column": col,
             "Type": str(data.dtype),
-            "Total Rows": data.len(),
+            "Non-Null Count": data.notnull().sum(),
             "Missing Values": data.isnull().sum(),
             "Missing (%)": round(data.isnull().mean() * 100, 2),
             "Unique": data.nunique(),
