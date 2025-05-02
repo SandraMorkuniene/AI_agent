@@ -133,9 +133,7 @@ Allowed tools: {allowed_tools}
 User provided these general instructions before cleaning:
 \"\"\"{extra_instructions}\"\"\"
 
-After reviewing the cleaned data, the user added:
-\"\"\"{feedback}\"\"\"
-Use both the initial instructions and the post-cleaning feedback to guide your next tool selection.
+Use this context to guide your next tool selection.
 Choose the most relevant next tool from the allowed tools.
 
 Respond ONLY with one of these tool names or 'end': {allowed_tools}
