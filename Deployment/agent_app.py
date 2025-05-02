@@ -12,7 +12,9 @@ from langgraph.graph import StateGraph, END
 # --- TOOL FUNCTIONS ---
 def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
 def normalize_missing_values(df): return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan)
-def drop_nulls(df): return df.dropna()
+def drop_nulls(df):
+    threshold = int(df.shape[1] * 0.5)  # Keep rows with at least 50% non-null values
+    return df.dropna(thresh=threshold)
 def standardize_column_names(df): df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_'); return df
 def remove_duplicates(df): return df.drop_duplicates()
 def convert_dtypes(df): return df.convert_dtypes()
