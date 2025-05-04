@@ -38,6 +38,41 @@ TOOLS = {
     "drop_columns_with_many_nulls": drop_columns_with_many_nulls,
     "standardize_booleans": standardize_booleans
 }
+def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_name: str) -> bool:
+    """Check if applying the tool actually changed the DataFrame."""
+    if tool_name == "fill_nulls_with_median":
+        # Check if any numeric missing values were filled
+        before_nulls = before_df.select_dtypes(include='number').isnull().sum().sum()
+        after_nulls = after_df.select_dtypes(include='number').isnull().sum().sum()
+        return after_nulls < before_nulls
+    
+    elif tool_name == "drop_nulls":
+        return len(after_df) < len(before_df)
+
+    elif tool_name == "drop_columns_with_many_nulls":
+        return after_df.shape[1] < before_df.shape[1]
+
+    elif tool_name == "remove_duplicates":
+        return len(after_df) < len(before_df)
+
+    elif tool_name == "standardize_column_names":
+        return not before_df.columns.equals(after_df.columns)
+
+    elif tool_name == "standardize_booleans":
+        # Check if any boolean conversion happened
+        before_obj_cols = before_df.select_dtypes(include='object')
+        after_obj_cols = after_df.select_dtypes(include='object')
+        return not before_obj_cols.equals(after_obj_cols)
+
+    elif tool_name == "convert_dtypes":
+        return any(before_df.dtypes != after_df.dtypes)
+
+    elif tool_name == "normalize_missing_values":
+        # Check if certain strings were converted to NaN
+        return (before_df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan).isnull().sum().sum()
+                != before_df.isnull().sum().sum())
+
+    return True  # Default to true if unsure
 
 # --- LLM Setup ---
 os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
@@ -114,13 +149,21 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
         return state
 
     try:
-        new_df = tool_func(df)
-        state["df"] = new_df
-        state["actions_taken"].append(tool_name)
-        state["log"].append(f"✅ Ran tool: {tool_name}")
+        before_df = df.copy(deep=True)
+        after_df = tool_func(df.copy(deep=True))
+        success = verify_tool_effect(before_df, after_df, tool_name)
+
+        if success:
+            state["df"] = after_df
+            state["actions_taken"].append(tool_name)
+            state["log"].append(f"✅ Ran tool: {tool_name}")
+        else:
+            state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, skipping.")
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
+    
     return state
+
 
 def build_graph(decider_func):
     builder = StateGraph(AgentState)
