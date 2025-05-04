@@ -82,6 +82,7 @@ class AgentState(TypedDict):
     actions_taken: List[str]
     next_action: Optional[str]
     step_count: int
+    feedback: str
 
 def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
     df = state["df"]
@@ -118,6 +119,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], extra_instruc
         df = state["df"]
         done = state["actions_taken"]
         step_count = state["step_count"]
+        feedback = state.get("feedback", "")
 
         if step_count > 10:
             state["log"].append("⚠️ Max cleaning steps reached. Ending.")
@@ -155,7 +157,8 @@ Respond ONLY with one of these tool names or 'end': {allowed_tools}
         "log": [],
         "actions_taken": [],
         "next_action": None,
-        "step_count": 0
+        "step_count": 0,
+        "feedback": extra_instructions
     }
     graph = build_graph(decider)
     final = graph.invoke(initial_state, config=RunnableConfig())
@@ -171,6 +174,8 @@ if "suggested_tools" not in st.session_state:
     st.session_state.suggested_tools = []
 if "cleaned_df" not in st.session_state:
     st.session_state.cleaned_df = None
+if "feedback_history" not in st.session_state:
+    st.session_state.feedback_history = []
 
 if st.button("🧹 Reset"):
     for key in ["df", "suggested_tools", "cleaned_df"]:
@@ -226,10 +231,21 @@ if st.session_state.cleaned_df is not None:
 
     st.markdown("### 🗣️ Provide Feedback to Improve Cleaning")
     feedback = st.text_area("Still see issues? Describe them:")
+    
     if st.button("🔁 Re-run With Feedback"):
+        if feedback.strip():
+            st.session_state.feedback_history.append(feedback.strip())
+    
+        combined_feedback = "\n".join(st.session_state.feedback_history)
+    
         with st.spinner("Agent re-cleaning in progress..."):
-            re_cleaned, re_log = run_agent_pipeline(st.session_state.cleaned_df, list(TOOLS.keys()), feedback)
+            re_cleaned, re_log = run_agent_pipeline(
+                st.session_state.cleaned_df,
+                list(TOOLS.keys()),
+                combined_feedback  # ⬅️ Cumulative feedback
+            )
             st.session_state.cleaned_df = re_cleaned
             st.session_state.log += re_log
         st.success("✅ Agent re-cleaning complete.")
         st.rerun()
+
