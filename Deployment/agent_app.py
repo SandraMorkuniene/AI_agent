@@ -18,6 +18,9 @@ def drop_nulls(df):
 def standardize_column_names(df): df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_'); return df
 def remove_duplicates(df): return df.drop_duplicates()
 def convert_dtypes(df): return df.convert_dtypes()
+def drop_columns_with_many_nulls(df, threshold: float = 0.8):
+    """Drops columns where more than `threshold` proportion of values are null."""
+    return df.loc[:, df.isnull().mean() <= threshold]
 def standardize_booleans(df):
     bool_map = {"yes": True, "no": False, "1": True, "0": False}
     for col in df.columns:
@@ -32,6 +35,7 @@ TOOLS = {
     "standardize_column_names": standardize_column_names,
     "remove_duplicates": remove_duplicates,
     "convert_dtypes": convert_dtypes,
+    "drop_columns_with_many_nulls": drop_columns_with_many_nulls,
     "standardize_booleans": standardize_booleans
 }
 
@@ -43,9 +47,10 @@ llm = ChatOpenAI(model="gpt-4", temperature=0)
 def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
     total_rows = len(df)
     summary = []
+
     for col in df.columns:
         data = df[col]
-        summary.append({
+        col_summary = {
             "Column": col,
             "Type": str(data.dtype),
             "Non-Null Count": data.notnull().sum(),
@@ -54,10 +59,21 @@ def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
             "Unique": data.nunique(),
             "Min": data.min() if pd.api.types.is_numeric_dtype(data) else "",
             "Max": data.max() if pd.api.types.is_numeric_dtype(data) else "",
-            #"Mean": round(data.mean(), 2) if pd.api.types.is_numeric_dtype(data) else "",
-            #"Median": round(data.median(), 2) if pd.api.types.is_numeric_dtype(data) else "",
-            "Sample Values": ', '.join(map(str, data.dropna().unique()[:5]))
-        })
+            "Sample Values": ', '.join(map(str, data.dropna().unique()[:5])),
+            "Num Outliers": "",  # default if not numeric
+        }
+
+        if pd.api.types.is_numeric_dtype(data):
+            q1 = data.quantile(0.25)
+            q3 = data.quantile(0.75)
+            iqr = q3 - q1
+            lower_bound = q1 - 1.5 * iqr
+            upper_bound = q3 + 1.5 * iqr
+            num_outliers = ((data < lower_bound) | (data > upper_bound)).sum()
+            col_summary["Num Outliers"] = int(num_outliers)
+
+        summary.append(col_summary)
+
     return pd.DataFrame(summary)
 
 # --- LLM Suggest Fixes ---
