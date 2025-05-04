@@ -64,13 +64,18 @@ def generate_column_summary_table(df: pd.DataFrame) -> pd.DataFrame:
         }
 
         if pd.api.types.is_numeric_dtype(data):
-            q1 = data.quantile(0.25)
-            q3 = data.quantile(0.75)
-            iqr = q3 - q1
-            lower_bound = q1 - 1.5 * iqr
-            upper_bound = q3 + 1.5 * iqr
-            num_outliers = ((data < lower_bound) | (data > upper_bound)).sum()
-            col_summary["Num Outliers"] = int(num_outliers)
+            try:
+                numeric_data = pd.to_numeric(data, errors="coerce")
+                q1 = numeric_data.quantile(0.25)
+                q3 = numeric_data.quantile(0.75)
+                iqr = q3 - q1
+                lower_bound = q1 - 1.5 * iqr
+                upper_bound = q3 + 1.5 * iqr
+                num_outliers = ((numeric_data < lower_bound) | (numeric_data > upper_bound)).sum()
+                col_summary["Num Outliers"] = int(num_outliers)
+            except Exception as e:
+                col_summary["Num Outliers"] = "Error"
+                print(f"Error processing outliers for column {col}: {e}")
 
         summary.append(col_summary)
 
