@@ -130,7 +130,7 @@ def build_graph(decider_func):
     builder.set_entry_point("LLMDecision")
     return builder.compile()
 
-def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], extra_instructions: str = ""):
+def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], feedback: str = ""):
     def decider(state: Dict[str, Any]) -> Dict[str, Any]:
         df = state["df"]
         done = state["actions_taken"]
@@ -149,7 +149,7 @@ You are a data cleaning agent. The dataset preview is:
 Cleaning steps already applied: {done}
 Allowed tools: {allowed_tools}
 User provided these general instructions before cleaning:
-\"\"\"{extra_instructions}\"\"\"
+\"\"\"{feedback}\"\"\"
 
 Use this context to guide your next tool selection.
 Choose the most relevant next tool from the allowed tools.
@@ -174,7 +174,7 @@ Respond ONLY with one of these tool names or 'end': {allowed_tools}
         "actions_taken": [],
         "next_action": None,
         "step_count": 0,
-        "feedback": extra_instructions
+        "feedback": feedback
     }
     graph = build_graph(decider)
     final = graph.invoke(initial_state, config=RunnableConfig())
@@ -224,7 +224,7 @@ if st.session_state.df is not None:
 
 if st.session_state.suggested_tools:
     st.subheader("🔧 Suggested Cleaning Steps")
-    st.code(st.session_state.suggested_tools)
+    #st.code(st.session_state.suggested_tools)
     selected_tools = st.multiselect("Choose tools to apply", options=st.session_state.suggested_tools, default=st.session_state.suggested_tools)
     extra_input = st.text_input("Extra instructions for the agent (optional)")
     if st.button("🚀 Run Cleaner"):
