@@ -206,7 +206,7 @@ Respond ONLY with one of these tool names or 'end': {allowed_tools}
 """
         tool = llm.invoke(instruction).content.strip().strip("'\"").lower()
 
-        if tool in done or tool not in allowed_tools:
+        if tool not in allowed_tools:
             if tool != "end":
                 state["log"].append(f"⚠️ Ignored repeated/invalid tool: {tool}")
             state["next_action"] = "end"
