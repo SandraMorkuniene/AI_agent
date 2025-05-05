@@ -196,8 +196,10 @@ You are a data cleaning agent. The dataset preview is:
 
 Cleaning steps already applied: {done}
 Allowed tools: {allowed_tools}
-User provided these general instructions before cleaning:
+User provided these instructions (may include specific column issues):
 \"\"\"{feedback}\"\"\"
+Carefully check if they request a tool be applied again (even if used before).
+If feedback mentions a column and a tool, prioritize applying that tool to that column.
 
 Use this context to guide your next tool selection.
 Choose the most relevant next tool from the allowed tools.
