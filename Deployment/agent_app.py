@@ -325,7 +325,7 @@ if st.session_state.suggested_tools:
     st.subheader("🔧 Suggested Cleaning Steps")
     #st.code(st.session_state.suggested_tools)
     selected_tools = st.multiselect("Choose tools to apply", options=st.session_state.suggested_tools, default=st.session_state.suggested_tools)
-    extra_input = st.text_input("Extra instructions for the agent (optional)")
+    #extra_input = st.text_input("Extra instructions for the agent (optional)")
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
             cleaned, log = run_agent_pipeline(st.session_state.df, selected_tools, extra_input)
