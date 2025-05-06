@@ -288,9 +288,9 @@ if st.button("🧹 Reset"):
 file = st.file_uploader("📂 Upload your CSV", type=["csv"])
 if file:
     try:
-        # Size limit: ~5MB
+        
         if file.size > 200 * 1024 * 1024:
-            st.error("❌ File is too large (limit is 5MB).")
+            st.error("❌ File is too large (limit is 200MB).")
             st.stop()
 
         df = pd.read_csv(file)
