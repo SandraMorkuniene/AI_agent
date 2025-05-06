@@ -2,12 +2,48 @@ import streamlit as st
 import os
 import pandas as pd
 import numpy as np
+import re
 import ast
 from typing import Dict, Any, List, Optional, TypedDict
 
 from langchain.chat_models import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
+
+# Patterns to detect common prompt injection attempts
+SUSPICIOUS_PATTERNS = [
+    r"(?i)ignore\s+previous\s+instructions",
+    r"(?i)act\s+as\s+(an?\s+)?(admin|hacker|expert)",
+    r"(?i)please\s+delete",
+    r"(?i)execute\s+this\s+code",
+    r"(?i)openai\.com|chatgpt|prompt injection",
+]
+
+def detect_prompt_injection(df: pd.DataFrame, sample_size: int = 500) -> List[str]:
+    suspicious = []
+    sample = df.astype(str).sample(min(len(df), sample_size), random_state=1)
+
+    for col in sample.columns:
+        for pattern in SUSPICIOUS_PATTERNS:
+            matches = sample[col].str.contains(pattern, na=False, regex=True)
+            if matches.any():
+                suspicious.append(f"⚠️ Potential prompt injection pattern found in column '{col}'")
+                break
+    return suspicious
+
+def validate_csv(df: pd.DataFrame) -> List[str]:
+    issues = []
+    if df.empty:
+        issues.append("Uploaded CSV is empty.")
+    if df.shape[1] < 2:
+        issues.append("CSV should contain at least two columns.")
+    if df.shape[0] < 3:
+        issues.append("CSV should contain at least three rows.")
+    if df.isnull().all(axis=1).any():
+        issues.append("Some rows are completely empty.")
+    return issues
+
+
 
 # --- TOOL FUNCTIONS ---
 def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
@@ -252,17 +288,30 @@ if st.button("🧹 Reset"):
 file = st.file_uploader("📂 Upload your CSV", type=["csv"])
 if file:
     try:
-        df = pd.read_csv(file)
-        if df.empty:
-            st.error("⚠️ Uploaded CSV is empty.")
-        else:
-            st.session_state.df = df
-            st.subheader("📄 Original Data")
-            st.dataframe(df.head(100), use_container_width=True)
+        # Size limit: ~5MB
+        if file.size > 200 * 1024 * 1024:
+            st.error("❌ File is too large (limit is 5MB).")
+            st.stop()
 
-            st.markdown("### 📊 Column Summary for Evaluation")
-            summary_df = generate_column_summary_table(df)
-            st.dataframe(summary_df, use_container_width=True)
+        df = pd.read_csv(file)
+
+        issues = validate_csv(df)
+        issues += detect_prompt_injection(df)
+
+        if issues:
+            for issue in issues:
+                st.error(f"❌ {issue}")
+            st.stop()
+
+        st.session_state.df = df
+
+        st.subheader("📄 Original Data")
+        st.dataframe(df.head(100), use_container_width=True)
+
+        st.markdown("### 📊 Column Summary for Evaluation")
+        summary_df = generate_column_summary_table(df)
+        st.dataframe(summary_df, use_container_width=True)
+
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
