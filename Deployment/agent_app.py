@@ -280,12 +280,12 @@ if "feedback_history" not in st.session_state:
     st.session_state.feedback_history = []
 
 if st.button("🧹 Reset"):
-    for key in ["df", "suggested_tools", "cleaned_df", "feedback_history"]:
+    for key in ["df", "suggested_tools", "cleaned_df", "feedback_history", "file_uploader"]:
         st.session_state[key] = None
     st.rerun()
 
 # --- Upload CSV ---
-file = st.file_uploader("📂 Upload your CSV", type=["csv"])
+file = st.file_uploader("📂 Upload your CSV", type=["csv"], key="file_uploader")
 if file:
     try:
         
