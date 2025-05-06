@@ -345,10 +345,12 @@ if st.session_state.cleaned_df is not None:
     st.dataframe(summary_df, use_container_width=True)
 
     st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv", "text/csv")
-    if "log" in st.session_state:
-        st.markdown("### 📝 Cleaning Log")
-        for log_entry in st.session_state.log:
-            st.write(log_entry)
+if "log" in st.session_state:
+    st.markdown("### 📝 Cleaning Log")
+    for log_entry in st.session_state.log:
+        st.write(log_entry)
+else:
+    st.write("No logs available.")
             
         
 
