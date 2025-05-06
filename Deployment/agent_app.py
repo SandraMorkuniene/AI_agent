@@ -214,7 +214,10 @@ def build_graph(decider_func):
     builder.set_entry_point("LLMDecision")
     return builder.compile()
 
-def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], feedback: str = ""):
+def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]]=None, feedback: str = ""):
+    if allowed_tools is None:
+        allowed_tools=list(TOOLS.keys())
+        
     def decider(state: Dict[str, Any]) -> Dict[str, Any]:
         df = state["df"]
         done = state["actions_taken"]
@@ -238,8 +241,6 @@ Carefully check if they request a tool be applied again (even if used before).
 If feedback mentions a column and a tool, prioritize applying that tool to that column.
 
 Use this context to guide your next tool selection.
-Choose the most relevant next tool from the allowed tools.
-
 Respond ONLY with one of these tool names or 'end': {allowed_tools}
 """
         tool = llm.invoke(instruction).content.strip().strip("'\"").lower()
@@ -328,7 +329,7 @@ if st.session_state.suggested_tools:
     #extra_input = st.text_input("Extra instructions for the agent (optional)")
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
-            cleaned, log = run_agent_pipeline(st.session_state.df, selected_tools, extra_input)
+            cleaned, log = run_agent_pipeline(st.session_state.df, selected_tools)
             st.session_state.cleaned_df = cleaned
             st.session_state.log = log
         st.success("✅ Cleaning complete.")
@@ -343,6 +344,12 @@ if st.session_state.cleaned_df is not None:
     st.dataframe(summary_df, use_container_width=True)
 
     st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv", "text/csv")
+    if "log" in st.session_state:
+        st.markdown("### 📝 Cleaning Log")
+        for log_entry in st.session_state.log:
+            st.write(log_entry)
+            
+        
 
     st.markdown("### 🗣️ Provide Feedback to Improve Cleaning")
     feedback = st.text_area("Still see issues? Describe them:")
