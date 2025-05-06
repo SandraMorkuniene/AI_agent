@@ -46,7 +46,7 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
 
 
 # --- TOOL FUNCTIONS ---
-def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
+#def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
 def normalize_missing_values(df): return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan)
 def drop_nulls(df):
     threshold = int(df.shape[1] * 0.5)  # Keep rows with at least 50% non-null values
@@ -66,7 +66,7 @@ def standardize_booleans(df):
 
 TOOLS = {
     "drop_nulls": drop_nulls,
-    "fill_nulls_with_median": fill_nulls_with_median,
+    #"fill_nulls_with_median": fill_nulls_with_median,
     "normalize_missing_values": normalize_missing_values,
     "standardize_column_names": standardize_column_names,
     "remove_duplicates": remove_duplicates,
@@ -324,9 +324,9 @@ if st.session_state.df is not None:
 
 if st.session_state.suggested_tools:
     st.subheader("🔧 Suggested Cleaning Steps")
-    #st.code(st.session_state.suggested_tools)
+
     selected_tools = st.multiselect("Choose tools to apply", options=st.session_state.suggested_tools, default=st.session_state.suggested_tools)
-    #extra_input = st.text_input("Extra instructions for the agent (optional)")
+
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
             cleaned, log = run_agent_pipeline(st.session_state.df, selected_tools)
@@ -364,7 +364,7 @@ if st.session_state.cleaned_df is not None:
             re_cleaned, re_log = run_agent_pipeline(
                 st.session_state.cleaned_df,
                 list(TOOLS.keys()),
-                combined_feedback  # ⬅️ Cumulative feedback
+                combined_feedback  
             )
             st.session_state.cleaned_df = re_cleaned
             st.session_state.log += re_log
