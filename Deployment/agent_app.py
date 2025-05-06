@@ -228,7 +228,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: List[str], feedback: str
 
         instruction = f"""
 You are a data cleaning agent. The dataset preview is:
-{df.head().to_string()}
+{df.sample(20).to_string()}
 
 Cleaning steps already applied: {done}
 Allowed tools: {allowed_tools}
@@ -280,7 +280,7 @@ if "feedback_history" not in st.session_state:
     st.session_state.feedback_history = []
 
 if st.button("🧹 Reset"):
-    for key in ["df", "suggested_tools", "cleaned_df"]:
+    for key in ["df", "suggested_tools", "cleaned_df", "feedback_history"]:
         st.session_state[key] = None
     st.rerun()
 
