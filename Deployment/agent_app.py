@@ -283,6 +283,7 @@ if "feedback_history" not in st.session_state:
 if st.button("🧹 Reset"):
     for key in ["df", "suggested_tools", "cleaned_df", "feedback_history", "file_uploader"]:
         st.session_state[key] = None
+    st.session_state.clear()
     st.rerun()
 
 # --- Upload CSV ---
