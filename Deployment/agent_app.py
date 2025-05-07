@@ -239,7 +239,7 @@ You are a data cleaning assistant.
 {state["feedback"]}
 
 ## Available Tools
-{list(TOOLS.keys())}
+{state.get("available_tools", list(TOOLS.keys()))}
 
 Choose the next best tool to apply. If relevant, suggest a specific column too.
 Respond in JSON format like:
@@ -356,7 +356,7 @@ if st.session_state["suggested_tools"]:
 
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
-            cleaned, log = run_agent_pipeline(st.session_state["df"])
+            cleaned, log = run_agent_pipeline(st.session_state["df"], tools=selected_tools))
             st.session_state["cleaned_df"] = cleaned
             st.session_state["log"] = log
         st.success("✅ Cleaning complete.")
@@ -400,6 +400,7 @@ if st.session_state["cleaned_df"] is not None:
         with st.spinner("Agent re-cleaning in progress..."):
             re_cleaned, re_log = run_agent_pipeline(
                 st.session_state["cleaned_df"],
+                tools=selected_tools,
                 combined_feedback
             )
             st.session_state["cleaned_df"] = re_cleaned
