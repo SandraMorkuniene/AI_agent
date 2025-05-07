@@ -401,8 +401,8 @@ if st.session_state["cleaned_df"] is not None:
             re_cleaned, re_log = run_agent_pipeline(
                 st.session_state["cleaned_df"],
                 tools=selected_tools,
-                combined_feedback
-            )
+                combined_feedback)
+            
             st.session_state["cleaned_df"] = re_cleaned
             st.session_state["log"] += re_log
         st.success("✅ Agent re-cleaning complete.")
