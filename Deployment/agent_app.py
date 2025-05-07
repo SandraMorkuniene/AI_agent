@@ -192,7 +192,7 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
             state["log"].append(f"✅ Ran tool: {tool_name}")
         else:
             state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, skipping.")
-            state["next_action"] = "end"
+            state["allowed_tools"].remove(tool_name)
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
     
@@ -221,6 +221,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]]=None
         done = state["actions_taken"]
         step_count = state["step_count"]
         feedback = state.get("feedback", "")
+        allowed_tools = state.get("allowed_tools", list(TOOLS.keys()))  # Get allowed tools from state
 
         if step_count > 10:
             state["log"].append("⚠️ Max cleaning steps reached. Ending.")
