@@ -236,7 +236,7 @@ You are a data cleaning assistant.
 {state.actions_taken}
 
 ## User Feedback
-"""{state.feedback}"""
+"{state.feedback}"
 
 ## Available Tools
 {list(TOOLS.keys())}
