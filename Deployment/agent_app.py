@@ -207,8 +207,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]] = No
         "log": [],
         "actions_taken": [],
         "step_count": 0,
-        "feedback": feedback,
-        "allowed_tools": allowed_tools
+        "feedback": feedback
     }
 
     for _ in range(10):
