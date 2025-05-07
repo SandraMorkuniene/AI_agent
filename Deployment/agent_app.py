@@ -86,7 +86,7 @@ def drop_columns_with_80perc_nulls(df: pd.DataFrame, column: Optional[str] = Non
 
 
 def standardize_booleans(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    bool_map = {"yes": True, "no": False, "1": True, "0": False}
+    bool_map = {"yes": True, "no": False, "Yes": True, "No": False, "1": True, "0": False}
     if column:
         if column in df.columns:
             df[column] = df[column].astype(str).str.lower().map(bool_map).fillna(df[column])
