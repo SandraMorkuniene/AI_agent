@@ -172,6 +172,7 @@ class AgentState(TypedDict):
     next_action: Optional[str]
     step_count: int
     feedback: str
+    retries: Dict[str, int]
 
 def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
     df = state["df"]
@@ -186,18 +187,25 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
         after_df = tool_func(df.copy(deep=True))
         success = verify_tool_effect(before_df, after_df, tool_name)
 
-        if success:
+        # Retry logic if the tool hasn't had an effect
+        if not success:
+            retries = state["retries"].get(tool_name, 0)
+            if retries < 3:  # Retry 3 times max
+                state["retries"][tool_name] = retries + 1
+                state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, retrying ({retries + 1}/3).")
+                state["next_action"] = tool_name  # Retry the same tool
+                return state
+            else:
+                state["log"].append(f"⚠️ Tool '{tool_name}' had no effect after {retries + 1} attempts.")
+        else:
             state["df"] = after_df
             state["actions_taken"].append(tool_name)
             state["log"].append(f"✅ Ran tool: {tool_name}")
-        else:
-            state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, skipping.")
-            if tool_name in state["allowed_tools"]:
-                state["allowed_tools"].remove(tool_name)
-        
+            state["retries"][tool_name] = 0  # Reset retries on success
+
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
-    
+
     return state
 
 
@@ -224,6 +232,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]]=None
         step_count = state["step_count"]
         feedback = state.get("feedback", "")
         allowed_tools = state.get("allowed_tools", list(TOOLS.keys()))  # Get allowed tools from state
+        retries = state.get("retries", {})
 
         if step_count > 10:
             state["log"].append("⚠️ Max cleaning steps reached. Ending.")
@@ -263,7 +272,8 @@ Respond ONLY with one of these tool names or 'end': {allowed_tools}
         "next_action": None,
         "step_count": 0,
         "feedback": feedback,
-        "allowed_tools": allowed_tools
+        "allowed_tools": allowed_tools,
+        "retries": {}
     }
     graph = build_graph(decider)
     final = graph.invoke(initial_state, config=RunnableConfig())
