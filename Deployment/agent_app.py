@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional, TypedDict
 from langchain.chat_models import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
+from langgraph.graph.state import GraphState
 
 # Patterns to detect common prompt injection attempts
 SUSPICIOUS_PATTERNS = [
@@ -198,100 +199,81 @@ Respond with a Python list of tool names only.
         return []
 
 # --- Agent State ---
-def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]] = None, feedback: str = ""):
-    if allowed_tools is None:
-        allowed_tools = list(TOOLS.keys())
+class CleaningState(GraphState):
+    df: pd.DataFrame
+    actions_taken: List[str] = []
+    feedback: str = ""
+    tool_decision: Optional[str] = None
+    column: Optional[str] = None
 
-    state = {
-        "df": df,
-        "log": [],
-        "actions_taken": [],
-        "step_count": 0,
-        "feedback": feedback
-    }
+# --- Tool Executor Node ---
+def apply_tool(state: CleaningState) -> CleaningState:
+    tool = state.tool_decision
+    column = state.column
+    df = state.df
 
-    for _ in range(10):
-        decision = decide_next_tool(state["df"], state["actions_taken"], allowed_tools, state["feedback"])
-
-        if decision["tool"] == "end":
-            state["log"].append("🏁 Cleaning ended by LLM.")
-            break
-
-        tool = decision["tool"]
-        column = decision.get("column")
-        state = run_tool(state, tool, column)
-        state["step_count"] += 1
-
-    return state["df"], state["log"]
-
-# --- Tool Execution Function ---
-
-def run_tool(state: Dict[str, Any], tool_name: str, column: Optional[str] = None) -> Dict[str, Any]:
-    df = state["df"]
-    tool_func = TOOLS.get(tool_name)
-
-    if not tool_func:
-        state["log"].append(f"❌ Tool '{tool_name}' not found.")
+    if tool not in TOOLS:
         return state
 
     try:
-        before_df = df.copy(deep=True)
-        after_df = tool_func(df.copy(deep=True), column=column) if column else tool_func(df.copy(deep=True))
-
-        if before_df.equals(after_df):
-            state["log"].append(f"⚠️ Tool '{tool_name}' had no effect on {column if column else 'dataframe'}.")
-        else:
-            state["df"] = after_df
-            state["actions_taken"].append(f"{tool_name}({column})" if column else tool_name)
-            state["log"].append(f"✅ Ran tool '{tool_name}' on column: {column if column else 'all applicable'}")
-
+        new_df = TOOLS[tool](df.copy(), column)
+        state.df = new_df
+        state.actions_taken.append(f"{tool}({column})" if column else tool)
     except Exception as e:
-        state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
-
+        state.actions_taken.append(f"Failed: {tool}({column}) -> {str(e)}")
     return state
 
-# --- LLM Tool Selector ---
-
-def decide_next_tool(df: pd.DataFrame, actions_taken: List[str], allowed_tools: List[str], feedback: str) -> Dict[str, Any]:
-    sample = df.sample(min(20, len(df)))
-
+# --- Tool Decision Node ---
+def choose_tool(state: CleaningState) -> CleaningState:
+    sample = state.df.sample(min(20, len(state.df)))
     prompt = f"""
 You are a data cleaning assistant.
 
 ## Dataset Sample
-{sample}
+{sample.to_string(index=False)}
 
 ## Cleaning History
-{actions_taken}
+{state.actions_taken}
 
 ## User Feedback
-\"\"\"{feedback}\"\"\"
+"""{state.feedback}"""
 
 ## Available Tools
-{allowed_tools}
+{list(TOOLS.keys())}
 
 Choose the next best tool to apply. If relevant, suggest a specific column too.
 Respond in JSON format like:
-{{ "tool": "fill_missing", "column": "age" }}
+{{ "tool": "normalize_missing_values", "column": "age" }}
 
 If no further cleaning is needed, respond with:
 {{ "tool": "end" }}
 """
-
     try:
-        print("Allowed tools in prompt:", allowed_tools)
-        print("Actions taken:", actions_taken)
         response = llm.invoke(prompt).content.strip()
         decision = json.loads(response)
-
-        # Validate tool
-        if decision["tool"] not in allowed_tools and decision["tool"] != "end":
-            return {"tool": "end"}
-
-        return decision
+        state.tool_decision = decision.get("tool")
+        state.column = decision.get("column")
     except Exception as e:
-        print(f"⚠️ Error in tool decision: {e}")
-        return {"tool": "end"}
+        state.tool_decision = "end"
+    return state
+
+# --- Build LangGraph ---
+workflow = StateGraph(CleaningState)
+workflow.add_node("choose_tool", choose_tool)
+workflow.add_node("apply_tool", apply_tool)
+
+workflow.set_entry_point("choose_tool")
+workflow.add_edge("choose_tool", "apply_tool")
+workflow.add_conditional_edges("apply_tool", lambda s: END if s.tool_decision == "end" else "choose_tool")
+
+graph = workflow.compile()
+
+# --- Run the agent ---
+def run_agent_pipeline(df: pd.DataFrame, feedback: str = ""):
+    initial_state = CleaningState(df=df, feedback=feedback)
+    final_state = graph.invoke(initial_state)
+    return final_state.df, final_state.actions_taken
+
 
 
 
