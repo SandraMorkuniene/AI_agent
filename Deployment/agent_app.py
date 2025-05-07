@@ -172,8 +172,6 @@ Respond with a Python list of tool names only.
     try:
         return ast.literal_eval(response)
     except Exception as e:
-        st.write("Error parsing suggested tools:", e)
-        st.write("LLM tool decision:", response)
         return []
 
 # --- Agent State ---
@@ -234,7 +232,7 @@ You are a data cleaning assistant.
 {state['available_tools']}
 
 Choose the best next tool to apply from the list.
-Respond with only the tool name (e.g., clean_whitespace), or 'end' to stop.
+Respond with only the tool name (e.g., remove_empty_rows), or 'end' to stop.
 """
     try:
         response = llm.invoke(prompt).content.strip().lower().strip("'\"")
@@ -380,9 +378,7 @@ if st.session_state["cleaned_df"] is not None:
         file_name=filename,
         mime="text/csv"
     )
-    if st.session_state.get("llm_response"):
-        st.markdown("### 🤖 Raw LLM Decision Output")
-        st.json(st.session_state["llm_response"])
+    
     
     if st.session_state["log"]:
         st.markdown("### 📝 Cleaning Log")
