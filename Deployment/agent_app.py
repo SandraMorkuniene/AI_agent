@@ -108,17 +108,10 @@ TOOLS = {
 }
 def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_name: str) -> bool:
     """Check if applying the tool actually changed the DataFrame."""
-    if tool_name == "fill_nulls_with_median":
-        # Check if any numeric missing values were filled
-        before_nulls = before_df.select_dtypes(include='number').isnull().sum().sum()
-        after_nulls = after_df.select_dtypes(include='number').isnull().sum().sum()
-        return after_nulls < before_nulls
-    
-        
-    elif tool_name == "remove_empty_rows":
+    if tool_name == "remove_empty_rows":
         return len(after_df) < len(before_df)
-
-    elif tool_name == "drop_columns_with_many_nulls":
+        
+    elif tool_name == "drop_columns_with_80perc_nulls":
         return after_df.shape[1] < before_df.shape[1]
 
     elif tool_name == "remove_duplicates":
@@ -195,7 +188,9 @@ Respond with a Python list of tool names only.
     response = llm.invoke(instruction).content.strip()
     try:
         return ast.literal_eval(response)
-    except:
+    except Exception as e:
+        print(f"Error parsing suggested tools: {e}")
+        print(f"LLM response was: {response}")
         return []
 
 # --- Agent State ---
@@ -254,6 +249,8 @@ If no further cleaning is needed, respond with:
         state["tool_decision"] = decision.get("tool")
         state["column"] = decision.get("column")
     except Exception as e:
+        print(f"Error parsing tool decision: {e}")
+        print(f"LLM response was: {response}")
         state["tool_decision"] = "end"
     return state
 
