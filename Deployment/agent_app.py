@@ -211,11 +211,20 @@ def apply_tool(state: CleaningState) -> CleaningState:
         return state
 
     try:
-        new_df = TOOLS[tool](df.copy(), column)
-        state["df"] = new_df
-        state["actions_taken"].append(f"{tool}({column})" if column else tool)
+        before_df = df.copy()
+        new_df = TOOLS[tool](before_df.copy(), column)
+
+        changed = verify_tool_effect(before_df, new_df, tool)
+        if changed:
+            state["df"] = new_df
+            log_entry = f"{tool}({column})" if column else tool
+        else:
+            log_entry = f"{tool}({column}) - no effect" if column else f"{tool} - no effect"
+
+        state["actions_taken"].append(log_entry)
     except Exception as e:
         state["actions_taken"].append(f"Failed: {tool}({column}) -> {str(e)}")
+
     return state
 
 # --- Tool Decision Node ---
