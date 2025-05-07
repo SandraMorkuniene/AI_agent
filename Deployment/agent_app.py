@@ -46,55 +46,38 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
 
 
 # --- TOOL FUNCTIONS ---
-def normalize_missing_values(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+def normalize_missing_values(df: pd.DataFrame) -> pd.DataFrame:
     targets = ["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""]
-    if column:
-        if column in df.columns:
-            df[column] = df[column].replace(targets, np.nan)
-    else:
-        df = df.replace(targets, np.nan)
-    return df
+    return df.replace(targets, np.nan)
 
 
-def standardize_column_names(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    # Column names are global; column arg ignored with a warning
+def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
     return df
 
 
-def remove_duplicates(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    # Works on full rows, column arg ignored
+def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop_duplicates()
 
 
-def convert_dtypes(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    if column:
-        if column in df.columns:
-            df[column] = pd.to_numeric(df[column], errors='ignore')
-    else:
-        df = df.convert_dtypes()
-    return df
+def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    return df.convert_dtypes()
 
 
-def remove_empty_rows(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    # Column arg irrelevant — we drop whole rows
+def remove_empty_rows(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna(how='all')
 
 
-def drop_columns_with_80perc_nulls(df: pd.DataFrame, column: Optional[str] = None, threshold: float = 0.8) -> pd.DataFrame:
-    # This tool is designed for full-column assessment; column arg ignored
+def drop_columns_with_80perc_nulls(df: pd.DataFrame, threshold: float = 0.8) -> pd.DataFrame:
     return df.loc[:, df.isnull().mean() <= threshold]
 
 
-def standardize_booleans(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
-    bool_map = {"yes": True, "no": False, "Yes": True, "No": False, "1": True, "0": False}
-    if column:
-        if column in df.columns:
-            df[column] = df[column].astype(str).str.lower().map(bool_map).fillna(df[column])
-    else:
-        for col in df.columns:
-            if df[col].astype(str).str.lower().isin(bool_map.keys()).any():
-                df[col] = df[col].astype(str).str.lower().map(bool_map).fillna(df[col])
+def standardize_booleans(df: pd.DataFrame) -> pd.DataFrame:
+    bool_map = {"yes": True, "no": False, "1": True, "0": False}
+    for col in df.columns:
+        # Only transform if at least one value looks like a boolean
+        if df[col].astype(str).str.lower().isin(bool_map.keys()).any():
+            df[col] = df[col].astype(str).str.lower().map(bool_map).fillna(df[col])
     return df
 
 TOOLS = {
