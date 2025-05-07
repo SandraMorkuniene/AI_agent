@@ -39,8 +39,6 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
         issues.append("CSV should contain at least two columns.")
     if df.shape[0] < 3:
         issues.append("CSV should contain at least three rows.")
-    if df.isnull().all(axis=1).any():
-        issues.append("Some rows are completely empty.")
     return issues
 
 
@@ -48,13 +46,13 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
 # --- TOOL FUNCTIONS ---
 #def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
 def normalize_missing_values(df): return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan)
-def drop_nulls(df):
-    threshold = int(df.shape[1] * 0.5)  # Keep rows with at least 50% non-null values
-    return df.dropna(thresh=threshold)
 def standardize_column_names(df): df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_'); return df
 def remove_duplicates(df): return df.drop_duplicates()
 def convert_dtypes(df): return df.convert_dtypes()
-def drop_columns_with_many_nulls(df, threshold: float = 0.8):
+def remove_empty_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Removes rows where all values are missing (NaN)."""
+    return df.dropna(how='all')    
+def drop_columns_with_80perc_nulls(df, threshold: float = 0.8):
     """Drops columns where more than `threshold` proportion of values are null."""
     return df.loc[:, df.isnull().mean() <= threshold]
 def standardize_booleans(df):
@@ -65,13 +63,12 @@ def standardize_booleans(df):
     return df
 
 TOOLS = {
-    "drop_nulls": drop_nulls,
-    #"fill_nulls_with_median": fill_nulls_with_median,
+    "remove_empty_rows": remove_empty_rows,
     "normalize_missing_values": normalize_missing_values,
     "standardize_column_names": standardize_column_names,
     "remove_duplicates": remove_duplicates,
     "convert_dtypes": convert_dtypes,
-    "drop_columns_with_many_nulls": drop_columns_with_many_nulls,
+    "drop_columns_with_80perc_nulls": drop_columns_with_80perc_nulls,
     "standardize_booleans": standardize_booleans
 }
 def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_name: str) -> bool:
@@ -82,7 +79,8 @@ def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_nam
         after_nulls = after_df.select_dtypes(include='number').isnull().sum().sum()
         return after_nulls < before_nulls
     
-    elif tool_name == "drop_nulls":
+        
+    elif tool_name == "remove_empty_rows":
         return len(after_df) < len(before_df)
 
     elif tool_name == "drop_columns_with_many_nulls":
@@ -95,7 +93,6 @@ def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_nam
         return not before_df.columns.equals(after_df.columns)
 
     elif tool_name == "standardize_booleans":
-        # Check if any boolean conversion happened
         before_obj_cols = before_df.select_dtypes(include='object')
         after_obj_cols = after_df.select_dtypes(include='object')
         return not before_obj_cols.equals(after_obj_cols)
@@ -104,7 +101,6 @@ def verify_tool_effect(before_df: pd.DataFrame, after_df: pd.DataFrame, tool_nam
         return any(before_df.dtypes != after_df.dtypes)
 
     elif tool_name == "normalize_missing_values":
-        # Check if certain strings were converted to NaN
         return (before_df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan).isnull().sum().sum()
                 != before_df.isnull().sum().sum())
 
