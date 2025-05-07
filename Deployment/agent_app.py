@@ -192,7 +192,9 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
             state["log"].append(f"✅ Ran tool: {tool_name}")
         else:
             state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, skipping.")
-            state["allowed_tools"].remove(tool_name)
+            if tool_name in state["allowed_tools"]:
+                state["allowed_tools"].remove(tool_name)
+        
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
     
@@ -260,7 +262,8 @@ Respond ONLY with one of these tool names or 'end': {allowed_tools}
         "actions_taken": [],
         "next_action": None,
         "step_count": 0,
-        "feedback": feedback
+        "feedback": feedback,
+        "allowed_tools": allowed_tools
     }
     graph = build_graph(decider)
     final = graph.invoke(initial_state, config=RunnableConfig())
