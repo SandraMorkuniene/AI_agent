@@ -189,8 +189,8 @@ Respond with a Python list of tool names only.
     try:
         return ast.literal_eval(response)
     except Exception as e:
-        print(f"Error parsing suggested tools: {e}")
-        print(f"LLM response was: {response}")
+        print("Error parsing suggested tools:" e)
+        st.write("LLM tool decision:", response)
         return []
 
 # --- Agent State ---
@@ -217,6 +217,7 @@ def apply_tool(state: CleaningState) -> CleaningState:
 
         changed = verify_tool_effect(before_df, new_df, tool)
         if changed:
+            st.write(f"🛠️ Trying to apply: {tool} to column: {column}")
             state["df"] = new_df
             log_entry = f"{tool}({column})" if column else tool
         else:
@@ -225,8 +226,11 @@ def apply_tool(state: CleaningState) -> CleaningState:
         state["actions_taken"].append(log_entry)
     except Exception as e:
         state["actions_taken"].append(f"Failed: {tool}({column}) -> {str(e)}")
+        st.write(f"❌ Tool failed: {tool}({column}) -> {str(e)}")
 
     return state
+    
+    
 
 # --- Tool Decision Node ---
 def choose_tool(state: CleaningState) -> CleaningState:
@@ -388,6 +392,9 @@ if st.session_state["cleaned_df"] is not None:
         file_name=filename,
         mime="text/csv"
     )
+    if st.session_state.get("llm_response"):
+    st.markdown("### 🤖 Raw LLM Decision Output")
+    st.json(st.session_state["llm_response"])
     
     if st.session_state["log"]:
         st.markdown("### 📝 Cleaning Log")
