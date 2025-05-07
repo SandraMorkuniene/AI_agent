@@ -267,6 +267,7 @@ If no further cleaning is needed, respond with:
 workflow = StateGraph(CleaningState)
 workflow.add_node("choose_tool", choose_tool)
 workflow.add_node("apply_tool", apply_tool)
+workflow.add_node("end", lambda s: s)
 
 workflow.set_entry_point("choose_tool")
 workflow.add_edge("choose_tool", "apply_tool")
