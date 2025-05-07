@@ -45,22 +45,55 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
 
 
 # --- TOOL FUNCTIONS ---
-#def fill_nulls_with_median(df): return df.fillna(df.median(numeric_only=True))
-def normalize_missing_values(df): return df.replace(["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""], np.nan)
-def standardize_column_names(df): df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_'); return df
-def remove_duplicates(df): return df.drop_duplicates()
-def convert_dtypes(df): return df.convert_dtypes()
-def remove_empty_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Removes rows where all values are missing (NaN)."""
-    return df.dropna(how='all')    
-def drop_columns_with_80perc_nulls(df, threshold: float = 0.8):
-    """Drops columns where more than `threshold` proportion of values are null."""
+def normalize_missing_values(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+    targets = ["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""]
+    if column:
+        if column in df.columns:
+            df[column] = df[column].replace(targets, np.nan)
+    else:
+        df = df.replace(targets, np.nan)
+    return df
+
+
+def standardize_column_names(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+    # Column names are global; column arg ignored with a warning
+    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+    return df
+
+
+def remove_duplicates(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+    # Works on full rows, column arg ignored
+    return df.drop_duplicates()
+
+
+def convert_dtypes(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+    if column:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors='ignore')
+    else:
+        df = df.convert_dtypes()
+    return df
+
+
+def remove_empty_rows(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
+    # Column arg irrelevant — we drop whole rows
+    return df.dropna(how='all')
+
+
+def drop_columns_with_80perc_nulls(df: pd.DataFrame, column: Optional[str] = None, threshold: float = 0.8) -> pd.DataFrame:
+    # This tool is designed for full-column assessment; column arg ignored
     return df.loc[:, df.isnull().mean() <= threshold]
-def standardize_booleans(df):
+
+
+def standardize_booleans(df: pd.DataFrame, column: Optional[str] = None) -> pd.DataFrame:
     bool_map = {"yes": True, "no": False, "1": True, "0": False}
-    for col in df.columns:
-        if df[col].astype(str).str.lower().isin(bool_map.keys()).any():
-            df[col] = df[col].astype(str).str.lower().map(bool_map).fillna(df[col])
+    if column:
+        if column in df.columns:
+            df[column] = df[column].astype(str).str.lower().map(bool_map).fillna(df[column])
+    else:
+        for col in df.columns:
+            if df[col].astype(str).str.lower().isin(bool_map.keys()).any():
+                df[col] = df[col].astype(str).str.lower().map(bool_map).fillna(df[col])
     return df
 
 TOOLS = {
@@ -165,16 +198,35 @@ Respond with a Python list of tool names only.
         return []
 
 # --- Agent State ---
-class AgentState(TypedDict):
-    df: pd.DataFrame
-    log: List[str]
-    actions_taken: List[str]
-    next_action: Optional[str]
-    step_count: int
-    feedback: str
-    retries: Dict[str, int]
+def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]] = None, feedback: str = ""):
+    if allowed_tools is None:
+        allowed_tools = list(TOOLS.keys())
 
-def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
+    state = {
+        "df": df,
+        "log": [],
+        "actions_taken": [],
+        "step_count": 0,
+        "feedback": feedback
+    }
+
+    for _ in range(10):
+        decision = decide_next_tool(state["df"], state["actions_taken"], allowed_tools, state["feedback"])
+
+        if decision["tool"] == "end":
+            state["log"].append("🏁 Cleaning ended by LLM.")
+            break
+
+        tool = decision["tool"]
+        column = decision.get("column")
+        state = run_tool(state, tool, column)
+        state["step_count"] += 1
+
+    return state["df"], state["log"]
+
+# --- Tool Execution Function ---
+
+def run_tool(state: Dict[str, Any], tool_name: str, column: Optional[str] = None) -> Dict[str, Any]:
     df = state["df"]
     tool_func = TOOLS.get(tool_name)
 
@@ -184,100 +236,62 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
 
     try:
         before_df = df.copy(deep=True)
-        after_df = tool_func(df.copy(deep=True))
-        success = verify_tool_effect(before_df, after_df, tool_name)
+        after_df = tool_func(df.copy(deep=True), column=column) if column else tool_func(df.copy(deep=True))
 
-        # Retry logic if the tool hasn't had an effect
-        if not success:
-            retries = state["retries"].get(tool_name, 0)
-            if retries < 3:  # Retry 3 times max
-                state["retries"][tool_name] = retries + 1
-                state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, retrying ({retries + 1}/3).")
-                state["next_action"] = tool_name  # Retry the same tool
-                return state
-            else:
-                state["log"].append(f"⚠️ Tool '{tool_name}' had no effect after {retries + 1} attempts.")
+        if before_df.equals(after_df):
+            state["log"].append(f"⚠️ Tool '{tool_name}' had no effect on {column if column else 'dataframe'}.")
         else:
             state["df"] = after_df
-            state["actions_taken"].append(tool_name)
-            state["log"].append(f"✅ Ran tool: {tool_name}")
-            state["retries"][tool_name] = 0  # Reset retries on success
+            state["actions_taken"].append(f"{tool_name}({column})" if column else tool_name)
+            state["log"].append(f"✅ Ran tool '{tool_name}' on column: {column if column else 'all applicable'}")
 
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
 
     return state
 
+# --- LLM Tool Selector ---
 
-def build_graph(decider_func):
-    builder = StateGraph(AgentState)
-    builder.add_node("LLMDecision", decider_func)
-    for tool_name in TOOLS:
-        builder.add_node(tool_name, lambda state, t=tool_name: run_tool(state, t))
-    builder.add_conditional_edges("LLMDecision", lambda x: x["next_action"], {
-        **{name: name for name in TOOLS}, "end": END
-    })
-    for tool_name in TOOLS:
-        builder.add_edge(tool_name, "LLMDecision")
-    builder.set_entry_point("LLMDecision")
-    return builder.compile()
+def decide_next_tool(df: pd.DataFrame, actions_taken: List[str], allowed_tools: List[str], feedback: str) -> Dict[str, Any]:
+    sample = df.sample(min(20, len(df)))
 
-def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]]=None, feedback: str = ""):
-    if allowed_tools is None:
-        allowed_tools=list(TOOLS.keys())
-        
-    def decider(state: Dict[str, Any]) -> Dict[str, Any]:
-        df = state["df"]
-        done = state["actions_taken"]
-        step_count = state["step_count"]
-        feedback = state.get("feedback", "")
-        allowed_tools = state.get("allowed_tools", list(TOOLS.keys()))  # Get allowed tools from state
-        retries = state.get("retries", {})
+    prompt = f"""
+You are a data cleaning assistant.
 
-        if step_count > 10:
-            state["log"].append("⚠️ Max cleaning steps reached. Ending.")
-            state["next_action"] = "end"
-            return state
+## Dataset Sample
+{sample}
 
-        instruction = f"""
-You are a data cleaning agent. The dataset preview is:
-{df.sample(min(20, len(df)))}
+## Cleaning History
+{actions_taken}
 
-Cleaning steps already applied: {done}
-Allowed tools: {allowed_tools}
-User provided these instructions (may include specific column issues):
+## User Feedback
 \"\"\"{feedback}\"\"\"
-Carefully check if they request a tool be applied again (even if used before).
-If feedback mentions a column and a tool, prioritize applying that tool to that column.
 
-Use this context to guide your next tool selection.
-Respond ONLY with one of these tool names or 'end': {allowed_tools}
+## Available Tools
+{allowed_tools}
+
+Choose the next best tool to apply. If relevant, suggest a specific column too.
+Respond in JSON format like:
+{{ "tool": "fill_missing", "column": "age" }}
+
+If no further cleaning is needed, respond with:
+{{ "tool": "end" }}
 """
-        tool = llm.invoke(instruction).content.strip().strip("'\"").lower()
 
-        if tool not in allowed_tools:
-            if tool != "end":
-                state["log"].append(f"⚠️ Ignored repeated/invalid tool: {tool}")
-            state["next_action"] = "end"
-        else:
-            state["next_action"] = tool
+    try:
+        response = llm.invoke(prompt).content.strip()
+        decision = json.loads(response)
 
-        state["step_count"] += 1
-        return state
+        # Validate tool
+        if decision["tool"] not in allowed_tools and decision["tool"] != "end":
+            return {"tool": "end"}
 
-    initial_state = {
-        "df": df,
-        "log": [],
-        "actions_taken": [],
-        "next_action": None,
-        "step_count": 0,
-        "feedback": feedback,
-        "allowed_tools": allowed_tools,
-        "retries": {}
-    }
-    graph = build_graph(decider)
-    final = graph.invoke(initial_state, config=RunnableConfig())
-    return final["df"], final["log"]
+        return decision
+    except Exception as e:
+        print(f"⚠️ Error in tool decision: {e}")
+        return {"tool": "end"}
+
+
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="Interactive Data Cleaner", layout="wide")
