@@ -199,7 +199,7 @@ Respond with a Python list of tool names only.
         return []
 
 # --- Agent State ---
-class CleaningState(GraphState):
+class CleaningState(TypedDict):
     df: pd.DataFrame
     actions_taken: List[str] = []
     feedback: str = ""
