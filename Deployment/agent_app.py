@@ -272,11 +272,12 @@ workflow.add_conditional_edges(
 graph = workflow.compile()
 
 # --- Run the agent ---
-def run_agent_pipeline(df: pd.DataFrame, feedback: str = ""):
+def run_agent_pipeline(df: pd.DataFrame, tools: List[str] = None, feedback: str = ""):
     initial_state = CleaningState(
         df=df,
         actions_taken=[],
         feedback=feedback,
+        available_tools=tools or list(TOOLS.keys()),
         tool_decision=None,
         column=None
     )
