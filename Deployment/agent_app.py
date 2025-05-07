@@ -290,6 +290,8 @@ def run_agent_pipeline(df: pd.DataFrame, tools: List[str] = None, feedback: str 
         column=None
     )
     final_state = graph.invoke(initial_state)
+    if "__end__" in final_state:
+        final_state = final_state["__end__"]
     return final_state["df"], final_state["actions_taken"]
 
 
