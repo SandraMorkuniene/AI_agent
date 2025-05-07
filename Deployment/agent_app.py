@@ -280,6 +280,8 @@ If no further cleaning is needed, respond with:
 """
 
     try:
+        print("Allowed tools in prompt:", allowed_tools)
+        print("Actions taken:", actions_taken)
         response = llm.invoke(prompt).content.strip()
         decision = json.loads(response)
 
