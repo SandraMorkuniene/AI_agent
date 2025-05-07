@@ -192,6 +192,7 @@ def run_tool(state: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
             state["log"].append(f"✅ Ran tool: {tool_name}")
         else:
             state["log"].append(f"⚠️ Tool '{tool_name}' had no effect, skipping.")
+            state["next_action"] = "end"
     except Exception as e:
         state["log"].append(f"❌ Failed to run tool '{tool_name}': {e}")
     
