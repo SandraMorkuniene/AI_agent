@@ -201,31 +201,31 @@ Respond with a Python list of tool names only.
 # --- Agent State ---
 class CleaningState(TypedDict):
     df: pd.DataFrame
-    actions_taken: List[str] = []
-    feedback: str = ""
-    tool_decision: Optional[str] = None
-    column: Optional[str] = None
+    actions_taken: List[str]
+    feedback: str 
+    tool_decision: Optional[str] 
+    column: Optional[str]
 
 # --- Tool Executor Node ---
 def apply_tool(state: CleaningState) -> CleaningState:
-    tool = state.tool_decision
-    column = state.column
-    df = state.df
+    tool = state["tool_decision"]
+    column = state["column"]
+    df = state["df"]
 
     if tool not in TOOLS:
         return state
 
     try:
         new_df = TOOLS[tool](df.copy(), column)
-        state.df = new_df
-        state.actions_taken.append(f"{tool}({column})" if column else tool)
+        state["df"] = new_df
+        state["actions_taken"].append(f"{tool}({column})" if column else tool)
     except Exception as e:
-        state.actions_taken.append(f"Failed: {tool}({column}) -> {str(e)}")
+        state["actions_taken"].append(f"Failed: {tool}({column}) -> {str(e)}")
     return state
 
 # --- Tool Decision Node ---
 def choose_tool(state: CleaningState) -> CleaningState:
-    sample = state.df.sample(min(20, len(state.df)))
+    sample = state["df"].sample(min(20, len(state["df"])))
     prompt = f"""
 You are a data cleaning assistant.
 
@@ -233,10 +233,10 @@ You are a data cleaning assistant.
 {sample.to_string(index=False)}
 
 ## Cleaning History
-{state.actions_taken}
+{state["actions_taken"]}
 
 ## User Feedback
-{state.feedback}
+{state["feedback"]}
 
 ## Available Tools
 {list(TOOLS.keys())}
@@ -251,10 +251,10 @@ If no further cleaning is needed, respond with:
     try:
         response = llm.invoke(prompt).content.strip()
         decision = json.loads(response)
-        state.tool_decision = decision.get("tool")
-        state.column = decision.get("column")
+        state["tool_decision"] = decision.get("tool")
+        state["column"] = decision.get("column")
     except Exception as e:
-        state.tool_decision = "end"
+        state["tool_decision"] = "end"
     return state
 
 # --- Build LangGraph ---
@@ -264,15 +264,24 @@ workflow.add_node("apply_tool", apply_tool)
 
 workflow.set_entry_point("choose_tool")
 workflow.add_edge("choose_tool", "apply_tool")
-workflow.add_conditional_edges("apply_tool", lambda s: END if s.tool_decision == "end" else "choose_tool")
+workflow.add_conditional_edges(
+    "apply_tool",
+    lambda s: END if s["tool_decision"] == "end" else "choose_tool"
+)
 
 graph = workflow.compile()
 
 # --- Run the agent ---
 def run_agent_pipeline(df: pd.DataFrame, feedback: str = ""):
-    initial_state = CleaningState(df=df, feedback=feedback)
+    initial_state = CleaningState(
+        df=df,
+        actions_taken=[],
+        feedback=feedback,
+        tool_decision=None,
+        column=None
+    )
     final_state = graph.invoke(initial_state)
-    return final_state.df, final_state.actions_taken
+    return final_state["df"], final_state["actions_taken"]
 
 
 
@@ -281,17 +290,12 @@ def run_agent_pipeline(df: pd.DataFrame, feedback: str = ""):
 st.set_page_config(page_title="Interactive Data Cleaner", layout="wide")
 st.title("🧠 Interactive Data Cleaner Agent")
 
-if "df" not in st.session_state:
-    st.session_state.df = None
-if "suggested_tools" not in st.session_state:
-    st.session_state.suggested_tools = []
-if "cleaned_df" not in st.session_state:
-    st.session_state.cleaned_df = None
-if "feedback_history" not in st.session_state:
-    st.session_state.feedback_history = []
+for key in ["df", "suggested_tools", "cleaned_df", "feedback_history", "log"]:
+    if key not in st.session_state:
+        st.session_state[key] = None if key != "feedback_history" else []
 
 if st.button("🧹 Reset"):
-    for key in ["df", "suggested_tools", "cleaned_df", "feedback_history", "file_uploader"]:
+    for key in ["df", "suggested_tools", "cleaned_df", "feedback_history", "file_uploader", "log"]:
         st.session_state[key] = None
     st.session_state.clear()
     st.rerun()
@@ -329,41 +333,54 @@ if file:
         st.stop()
 
 # --- Suggest Cleaning Steps ---
-if st.session_state.df is not None:
+if st.session_state["df"] is not None:
     if st.button("🧠 Analyze & Suggest Cleaning Steps"):
-        st.session_state.suggested_tools = suggest_fixes(st.session_state.df)
+        st.session_state["suggested_tools"] = suggest_fixes(st.session_state["df"])
 
-if st.session_state.suggested_tools:
+if st.session_state["suggested_tools"]:
     st.subheader("🔧 Suggested Cleaning Steps")
     all_tool_options = list(TOOLS.keys())
-    tool_set = set(all_tool_options) | set(st.session_state.suggested_tools)
-    combined_tool_options = sorted(tool_set) 
-    valid_suggested_tools = [tool for tool in st.session_state.suggested_tools if tool in combined_tool_options]
+    tool_set = set(all_tool_options) | set(st.session_state["suggested_tools"])
+    combined_tool_options = sorted(tool_set)
+    valid_suggested_tools = [
+        tool for tool in st.session_state["suggested_tools"] if tool in combined_tool_options
+    ]
 
-    selected_tools = st.multiselect("Review, remove, or add tools below before running:", options=combined_tool_options, default=valid_suggested_tools,help="Only selected tools will be run. You can add or remove freely.")
+    selected_tools = st.multiselect(
+        "Review, remove, or add tools below before running:",
+        options=combined_tool_options,
+        default=valid_suggested_tools,
+        help="Only selected tools will be run. You can add or remove freely."
+    )
 
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
-            cleaned, log = run_agent_pipeline(st.session_state.df, selected_tools)
-            st.session_state.cleaned_df = cleaned
-            st.session_state.log = log
+            cleaned, log = run_agent_pipeline(st.session_state["df"])
+            st.session_state["cleaned_df"] = cleaned
+            st.session_state["log"] = log
         st.success("✅ Cleaning complete.")
 
 # --- Show Cleaned Data ---
-if st.session_state.cleaned_df is not None:
+if st.session_state["cleaned_df"] is not None:
     st.subheader("📦 Final Cleaned Data")
-    st.dataframe(st.session_state.cleaned_df.head(100), use_container_width=True)
+    st.dataframe(st.session_state["cleaned_df"].head(100), use_container_width=True)
 
     st.markdown("### 📊 Updated Column Summary")
-    summary_df = generate_column_summary_table(st.session_state.cleaned_df)
+    summary_df = generate_column_summary_table(st.session_state["cleaned_df"])
     st.dataframe(summary_df, use_container_width=True)
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"cleaned_{timestamp}.csv"
-    st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), file_name=filename, mime="text/csv")
-    if "log" in st.session_state:
+    st.download_button(
+        "⬇ Download Cleaned CSV",
+        st.session_state["cleaned_df"].to_csv(index=False),
+        file_name=filename,
+        mime="text/csv"
+    )
+    
+    if st.session_state["log"]:
         st.markdown("### 📝 Cleaning Log")
-        for log_entry in st.session_state.log:
+        for log_entry in st.session_state["log"]:
             st.write(log_entry)
     else:
         st.write("No logs available.")
@@ -372,21 +389,20 @@ if st.session_state.cleaned_df is not None:
 
     st.markdown("### 🗣️ Provide Feedback to Improve Cleaning")
     feedback = st.text_area("Still see issues? Describe them:")
-    
+
     if st.button("🔁 Re-run With Feedback"):
         if feedback.strip():
-            st.session_state.feedback_history.append(feedback.strip())
-    
-        combined_feedback = "\n".join(st.session_state.feedback_history)
-    
+            st.session_state["feedback_history"].append(feedback.strip())
+
+        combined_feedback = "\n".join(st.session_state["feedback_history"])
+
         with st.spinner("Agent re-cleaning in progress..."):
             re_cleaned, re_log = run_agent_pipeline(
-                st.session_state.cleaned_df,
-                list(TOOLS.keys()),
-                combined_feedback  
+                st.session_state["cleaned_df"],
+                combined_feedback
             )
-            st.session_state.cleaned_df = re_cleaned
-            st.session_state.log += re_log
+            st.session_state["cleaned_df"] = re_cleaned
+            st.session_state["log"] += re_log
         st.success("✅ Agent re-cleaning complete.")
         st.rerun()
 
