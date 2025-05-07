@@ -189,7 +189,7 @@ Respond with a Python list of tool names only.
     try:
         return ast.literal_eval(response)
     except Exception as e:
-        print("Error parsing suggested tools:" e)
+        st.write("Error parsing suggested tools:", e)
         st.write("LLM tool decision:", response)
         return []
 
