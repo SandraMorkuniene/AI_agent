@@ -325,8 +325,9 @@ if st.session_state.df is not None:
 
 if st.session_state.suggested_tools:
     st.subheader("🔧 Suggested Cleaning Steps")
+    all_tool_options = list(TOOLS.keys())
 
-    selected_tools = st.multiselect("Choose tools to apply", options=st.session_state.suggested_tools, default=st.session_state.suggested_tools)
+    selected_tools = st.multiselect("Review, remove, or add tools below before running:", options=all_tool_options, default=st.session_state.suggested_tools,help="Only selected tools will be run. You can add or remove freely.")
 
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
