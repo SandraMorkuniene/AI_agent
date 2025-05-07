@@ -200,6 +200,7 @@ class CleaningState(TypedDict):
     feedback: str 
     tool_decision: Optional[str] 
     column: Optional[str]
+    available_tools: List[str]
 
 # --- Tool Executor Node ---
 def apply_tool(state: CleaningState) -> CleaningState:
