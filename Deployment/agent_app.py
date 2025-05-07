@@ -228,7 +228,7 @@ def run_agent_pipeline(df: pd.DataFrame, allowed_tools: Optional[List[str]]=None
 
         instruction = f"""
 You are a data cleaning agent. The dataset preview is:
-{df.sample(20).to_string()}
+{df.sample(min(20, len(df)))}
 
 Cleaning steps already applied: {done}
 Allowed tools: {allowed_tools}
