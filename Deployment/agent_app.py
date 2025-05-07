@@ -197,40 +197,40 @@ Respond with a Python list of tool names only.
 class CleaningState(TypedDict):
     df: pd.DataFrame
     actions_taken: List[str]
-    feedback: str 
-    tool_decision: Optional[str] 
-    column: Optional[str]
+    feedback: str
+    tool_decision: Optional[str]
     available_tools: List[str]
+    step_count: int
+    log: List[str]
 
 # --- Tool Executor Node ---
 def apply_tool(state: CleaningState) -> CleaningState:
     tool = state["tool_decision"]
-    column = state["column"]
     df = state["df"]
 
     if tool not in TOOLS:
+        state["log"].append(f"❌ Tool '{tool}' not found.")
         return state
 
     try:
-        before_df = df.copy()
-        new_df = TOOLS[tool](before_df.copy(), column)
-
+        before_df = df.copy(deep=True)
+        tool_func = TOOLS[tool]
+        new_df = tool_func(before_df.copy(deep=True))  # No column passed
         changed = verify_tool_effect(before_df, new_df, tool)
-        if changed:
-            st.write(f"🛠️ Trying to apply: {tool} to column: {column}")
-            state["df"] = new_df
-            log_entry = f"{tool}({column})" if column else tool
-        else:
-            log_entry = f"{tool}({column}) - no effect" if column else f"{tool} - no effect"
 
-        state["actions_taken"].append(log_entry)
+        if changed:
+            state["df"] = new_df
+            state["actions_taken"].append(tool)
+            state["log"].append(f"✅ Applied: {tool}")
+        else:
+            state["actions_taken"].append(f"{tool} - no effect")
+            state["log"].append(f"⚠️ Tool '{tool}' had no effect.")
+
     except Exception as e:
-        state["actions_taken"].append(f"Failed: {tool}({column}) -> {str(e)}")
-        st.write(f"❌ Tool failed: {tool}({column}) -> {str(e)}")
+        state["actions_taken"].append(f"Failed: {tool} -> {str(e)}")
+        state["log"].append(f"❌ Tool '{tool}' failed: {str(e)}")
 
     return state
-    
-    
 
 # --- Tool Decision Node ---
 def choose_tool(state: CleaningState) -> CleaningState:
@@ -242,30 +242,33 @@ You are a data cleaning assistant.
 {sample.to_string(index=False)}
 
 ## Cleaning History
-{state["actions_taken"]}
+{state['actions_taken']}
 
 ## User Feedback
-{state["feedback"]}
+{state['feedback']}
 
 ## Available Tools
-{state.get("available_tools", list(TOOLS.keys()))}
+{state['available_tools']}
 
-Choose the next best tool to apply. If relevant, suggest a specific column too.
-Respond in JSON format like:
-{{ "tool": "normalize_missing_values", "column": "age" }}
-
-If no further cleaning is needed, respond with:
-{{ "tool": "end" }}
+Choose the best next tool to apply from the list.
+Respond with only the tool name (e.g., clean_whitespace), or 'end' to stop.
 """
     try:
-        response = llm.invoke(prompt).content.strip()
-        decision = json.loads(response)
-        state["tool_decision"] = decision.get("tool")
-        state["column"] = decision.get("column")
+        response = llm.invoke(prompt).content.strip().lower().strip("'\"")
+        if response not in state["available_tools"] and response != "end":
+            state["log"].append(f"⚠️ Ignoring invalid tool: {response}")
+            state["tool_decision"] = "end"
+        else:
+            state["tool_decision"] = response
     except Exception as e:
-        print(f"Error parsing tool decision: {e}")
-        print(f"LLM response was: {response}")
+        state["log"].append(f"❌ Error in tool decision: {e}")
         state["tool_decision"] = "end"
+
+    state["step_count"] += 1
+    if state["step_count"] > 10:
+        state["log"].append("⚠️ Max steps reached. Stopping.")
+        state["tool_decision"] = "end"
+
     return state
 
 # --- Build LangGraph ---
@@ -285,18 +288,20 @@ graph = workflow.compile()
 
 # --- Run the agent ---
 def run_agent_pipeline(df: pd.DataFrame, tools: List[str] = None, feedback: str = ""):
-    initial_state = CleaningState(
-        df=df,
-        actions_taken=[],
-        feedback=feedback,
-        available_tools=tools or list(TOOLS.keys()),
-        tool_decision=None,
-        column=None
-    )
+    initial_state: CleaningState = {
+        "df": df,
+        "actions_taken": [],
+        "feedback": feedback,
+        "available_tools": tools or list(TOOLS.keys()),
+        "tool_decision": None,
+        "step_count": 0,
+        "log": []
+    }
+
     final_state = graph.invoke(initial_state)
     if "__end__" in final_state:
         final_state = final_state["__end__"]
-    return final_state["df"], final_state["actions_taken"]
+    return final_state["df"], final_state["log"]
 
 
 
