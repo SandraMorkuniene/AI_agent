@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import re
+import datetime
 import ast
 from typing import Dict, Any, List, Optional, TypedDict
 
@@ -344,7 +345,9 @@ if st.session_state.cleaned_df is not None:
     summary_df = generate_column_summary_table(st.session_state.cleaned_df)
     st.dataframe(summary_df, use_container_width=True)
 
-    st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), "cleaned.csv", "text/csv")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"cleaned_{timestamp}.csv"
+    st.download_button("⬇ Download Cleaned CSV", st.session_state.cleaned_df.to_csv(index=False), file_name=filename, mime="text/csv")
     if "log" in st.session_state:
         st.markdown("### 📝 Cleaning Log")
         for log_entry in st.session_state.log:
