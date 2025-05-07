@@ -356,7 +356,7 @@ if st.session_state["suggested_tools"]:
 
     if st.button("🚀 Run Cleaner"):
         with st.spinner("Agent cleaning in progress..."):
-            cleaned, log = run_agent_pipeline(st.session_state["df"], tools=selected_tools))
+            cleaned, log = run_agent_pipeline(st.session_state["df"], tools=selected_tools)
             st.session_state["cleaned_df"] = cleaned
             st.session_state["log"] = log
         st.success("✅ Cleaning complete.")
