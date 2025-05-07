@@ -393,8 +393,8 @@ if st.session_state["cleaned_df"] is not None:
         mime="text/csv"
     )
     if st.session_state.get("llm_response"):
-    st.markdown("### 🤖 Raw LLM Decision Output")
-    st.json(st.session_state["llm_response"])
+        st.markdown("### 🤖 Raw LLM Decision Output")
+        st.json(st.session_state["llm_response"])
     
     if st.session_state["log"]:
         st.markdown("### 📝 Cleaning Log")
