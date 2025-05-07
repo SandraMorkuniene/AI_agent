@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, TypedDict
 from langchain.chat_models import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
-from langgraph.graph.state import GraphState
+
 
 # Patterns to detect common prompt injection attempts
 SUSPICIOUS_PATTERNS = [
