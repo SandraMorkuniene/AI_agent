@@ -47,7 +47,7 @@ def validate_csv(df: pd.DataFrame) -> List[str]:
 
 # --- TOOL FUNCTIONS ---
 def normalize_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    targets = ["N/A", "n/a", "not available", "Not Available", "none", "None", "not a date", ""]
+    targets = ["N/A", "n/a", "not available", "Not Available", "not defined", "none", "None", "not a date", ""]
     return df.replace(targets, np.nan)
 
 
